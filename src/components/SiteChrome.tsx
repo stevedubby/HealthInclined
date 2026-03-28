@@ -1,0 +1,25 @@
+"use client";
+
+import type { ReactNode } from "react";
+import { usePathname } from "next/navigation";
+import SiteFooter from "@/components/SiteFooter";
+import SiteHeader from "@/components/SiteHeader";
+
+export default function SiteChrome({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const hidePublicChrome = pathname === "/admin" || pathname?.startsWith("/admin/");
+
+  if (hidePublicChrome) {
+    return <>{children}</>;
+  }
+
+  return (
+    <>
+      <SiteHeader />
+      <main id="main" className="flex-1">
+        {children}
+      </main>
+      <SiteFooter />
+    </>
+  );
+}

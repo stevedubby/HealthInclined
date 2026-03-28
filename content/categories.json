@@ -1,0 +1,28 @@
+[
+  {
+    "slug": "body-signals",
+    "name": "Why Your Body Does This",
+    "shortDescription": "Core body-signal explanations for everyday symptoms.",
+    "highlight": true
+  },
+  {
+    "slug": "sleep",
+    "name": "Sleep",
+    "shortDescription": "Snoring, fatigue, and sleep issues that affect how you feel."
+  },
+  {
+    "slug": "nerves-circulation",
+    "name": "Nerves & Circulation",
+    "shortDescription": "Pins & needles, numbness, and nerve comfort tips."
+  },
+  {
+    "slug": "daily-health",
+    "name": "Daily Health",
+    "shortDescription": "Hydration, urine color, and small habits you can track."
+  },
+  {
+    "slug": "myths",
+    "name": "Myths",
+    "shortDescription": "Everyday misconceptions—what's true and what's not."
+  }
+]

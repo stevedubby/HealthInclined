@@ -1,0 +1,243 @@
+import Link from "next/link";
+import Container from "@/components/Container";
+import PostCard from "@/components/PostCard";
+import CategoryTile from "@/components/CategoryTile";
+import VideoEmbed from "@/components/VideoEmbed";
+import { getAllPosts } from "@/lib/content/posts";
+import { getCategories } from "@/lib/categories";
+import { SITE } from "@/lib/site";
+import { getAllEmbeddedVideos } from "@/lib/videos";
+
+export default async function Home() {
+  const categories = getCategories();
+  const posts = getAllPosts();
+  const featured = posts.slice(0, 6);
+  const videos = getAllEmbeddedVideos();
+  const primaryVideo = videos[0];
+  const secondaryVideo = videos[1];
+
+  return (
+    <div className="relative isolate overflow-hidden bg-white dark:bg-zinc-950 before:absolute before:inset-0 before:-z-10 before:content-[''] before:bg-[radial-gradient(60%_60%_at_0%_0%,rgba(16,185,129,0.18),transparent_55%),radial-gradient(55%_55%_at_90%_0%,rgba(16,185,129,0.10),transparent_55%),linear-gradient(to_bottom,rgba(16,185,129,0.08),transparent_45%)] dark:before:bg-[radial-gradient(60%_60%_at_0%_0%,rgba(16,185,129,0.22),transparent_55%),radial-gradient(55%_55%_at_90%_0%,rgba(16,185,129,0.14),transparent_55%),linear-gradient(to_bottom,rgba(16,185,129,0.10),transparent_48%)]">
+      <section className="pt-10 sm:pt-14">
+        <Container>
+          <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-start">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-2 text-sm font-semibold text-emerald-800 dark:border-emerald-800 dark:bg-zinc-900 dark:text-emerald-300">
+                everyday health education
+              </div>
+
+              <h1 className="mt-6 text-4xl font-bold leading-[1.05] tracking-tight text-zinc-900 dark:text-zinc-100 sm:text-5xl">
+                Understand What Your Body Is Telling You
+              </h1>
+
+              <p className="mt-4 max-w-prose text-lg leading-7 text-zinc-700 dark:text-zinc-300">
+                Simple, science-backed explanations for common body symptoms.
+              </p>
+
+              <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <Link
+                  href="/blog"
+                  className="inline-flex items-center justify-center rounded-2xl bg-emerald-700 px-6 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-emerald-800"
+                >
+                  Start Reading
+                </Link>
+                <Link
+                  href="/category/body-signals"
+                  className="inline-flex items-center justify-center rounded-2xl border border-emerald-200 bg-white px-6 py-3 text-base font-semibold text-emerald-800 transition hover:bg-emerald-50 dark:border-emerald-800 dark:bg-zinc-900 dark:text-emerald-300 dark:hover:bg-zinc-800"
+                >
+                  Why Your Body Does This
+                </Link>
+              </div>
+
+              <div className="mt-8 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl border border-emerald-100 bg-white p-4 dark:border-emerald-900 dark:bg-zinc-900">
+                  <div className="text-sm font-semibold text-emerald-900">
+                    Simple language
+                  </div>
+                  <p className="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+                    Written for everyday readers.
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-emerald-100 bg-white p-4 dark:border-emerald-900 dark:bg-zinc-900">
+                  <div className="text-sm font-semibold text-emerald-900">
+                    Practical steps
+                  </div>
+                  <p className="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+                    What you can do today.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-emerald-100 bg-white p-5 shadow-sm dark:border-emerald-900 dark:bg-zinc-900">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-semibold text-emerald-900">
+                    New to Healthinclined?
+                  </div>
+                  <p className="mt-1 text-sm leading-6 text-zinc-400 dark:text-zinc-400">
+                    Start with a body-signal post, then explore related topics.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 space-y-3">
+                {featured.slice(0, 3).map((post) => (
+                  <div
+                    key={post.slug}
+                    className="rounded-2xl border border-emerald-100 bg-emerald-50/30 p-4 dark:border-emerald-900 dark:bg-emerald-950/20"
+                  >
+                    <div className="text-xs font-semibold text-emerald-700">
+                      {post.category}
+                    </div>
+                    <Link
+                      href={`/blog/${post.slug}`}
+                      className="mt-2 block text-sm font-bold leading-6 text-zinc-900 hover:underline underline-offset-4 dark:text-zinc-100"
+                    >
+                      {post.title}
+                    </Link>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-5 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                Tip: Save posts you like and revisit when symptoms come back.
+              </div>
+            </div>
+          </div>
+        </Container>
+      </section>
+
+      <section className="pt-12 sm:pt-16">
+        <Container>
+          <div className="flex items-end justify-between gap-6">
+            <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 sm:text-3xl">
+              Featured Articles
+            </h2>
+            <Link
+              href="/blog"
+              className="text-sm font-semibold text-emerald-700 hover:underline underline-offset-4"
+            >
+              View all →
+            </Link>
+          </div>
+
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {featured.map((post) => (
+              <PostCard key={post.slug} post={post} />
+            ))}
+          </div>
+        </Container>
+      </section>
+
+      <section className="pt-12 sm:pt-16">
+        <Container>
+          <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 sm:text-3xl">
+            Categories
+          </h2>
+          <p className="mt-2 max-w-prose text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+            Choose a content pillar and learn the patterns behind everyday body signals.
+          </p>
+
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {categories.map((c) => (
+              <CategoryTile key={c.slug} category={c} />
+            ))}
+          </div>
+        </Container>
+      </section>
+
+      <section className="pt-12 sm:pt-16">
+        <Container>
+          <div className="rounded-3xl border border-emerald-100 bg-emerald-50/40 p-6 sm:p-8 dark:border-emerald-900 dark:bg-emerald-950/25">
+            <div className="grid gap-6 lg:grid-cols-[1fr_0.9fr] lg:items-center">
+              <div>
+                <div className="text-sm font-semibold text-emerald-800">
+                  Why Your Body Does This
+                </div>
+                <h2 className="mt-2 text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 sm:text-4xl">
+                  A clear series for everyday symptoms
+                </h2>
+                <p className="mt-3 max-w-prose text-base leading-7 text-zinc-700 dark:text-zinc-300">
+                  Start with body-signal explanations, then follow related links to
+                  understand how nerves, sleep, and daily habits can connect.
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-emerald-200 bg-white p-5 dark:border-emerald-800 dark:bg-zinc-900">
+                <div className="text-sm font-semibold text-emerald-900">
+                  Recommended next step
+                </div>
+                <Link
+                  href="/category/body-signals"
+                  className="mt-3 inline-flex w-full items-center justify-center rounded-2xl bg-emerald-700 px-5 py-3 text-base font-semibold text-white transition hover:bg-emerald-800"
+                >
+                  Explore Body Signals
+                </Link>
+                <div className="mt-3 text-xs leading-5 text-zinc-600 dark:text-zinc-400">
+                  Built for short-form traffic: quick context, simple steps, and
+                  clear “what to notice” guidance.
+                </div>
+              </div>
+            </div>
+          </div>
+        </Container>
+      </section>
+
+      <section className="pt-12 sm:pt-16">
+        <Container>
+          <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 sm:text-3xl">
+            Videos (Short + Simple)
+          </h2>
+          <p className="mt-2 max-w-prose text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+            Watch a quick explanation, then read the full article for practical next steps.
+          </p>
+
+          <div className="mt-6 grid gap-4 lg:grid-cols-2">
+            {primaryVideo ? (
+              <VideoEmbed
+                platform={primaryVideo.platform}
+                id={primaryVideo.id}
+                title={primaryVideo.title}
+              />
+            ) : null}
+            {secondaryVideo ? (
+              <VideoEmbed
+                platform={secondaryVideo.platform}
+                id={secondaryVideo.id}
+                title={secondaryVideo.title}
+              />
+            ) : null}
+          </div>
+
+          <div className="mt-6">
+            <Link
+              href="/videos"
+              className="text-sm font-semibold text-emerald-700 hover:underline underline-offset-4"
+            >
+              Browse the full video library →
+            </Link>
+          </div>
+        </Container>
+      </section>
+
+      <section className="pt-12 pb-16 sm:pt-16">
+        <Container>
+          <div className="rounded-3xl border border-emerald-100 bg-white p-6 sm:p-8 dark:border-emerald-900 dark:bg-zinc-900">
+            <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 sm:text-3xl">
+              Trust, without the drama
+            </h2>
+            <p className="mt-3 max-w-prose text-base leading-7 text-zinc-700 dark:text-zinc-300">
+              {SITE.trustLine}
+            </p>
+            <p className="mt-3 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+              You’ll see plain language, clear “normal vs notice” guidance, and practical
+              options for what you can do next.
+            </p>
+          </div>
+        </Container>
+      </section>
+    </div>
+  );
+}
+

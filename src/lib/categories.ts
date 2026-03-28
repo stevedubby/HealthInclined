@@ -1,0 +1,102 @@
+import fs from "node:fs";
+import path from "node:path";
+
+export type Category = {
+  slug: string;
+  name: string;
+  shortDescription: string;
+  highlight?: boolean;
+};
+
+const CATEGORIES_FILE = path.join(process.cwd(), "content", "categories.json");
+
+export const DEFAULT_CATEGORIES: Category[] = [
+  {
+    slug: "body-signals",
+    name: "Why Your Body Does This",
+    shortDescription: "Core body-signal explanations for everyday symptoms.",
+    highlight: true,
+  },
+  {
+    slug: "sleep",
+    name: "Sleep",
+    shortDescription: "Snoring, fatigue, and sleep issues that affect how you feel.",
+  },
+  {
+    slug: "nerves-circulation",
+    name: "Nerves & Circulation",
+    shortDescription: "Pins & needles, numbness, and nerve comfort tips.",
+  },
+  {
+    slug: "daily-health",
+    name: "Daily Health",
+    shortDescription: "Hydration, urine color, and small habits you can track.",
+  },
+  {
+    slug: "myths",
+    name: "Myths",
+    shortDescription: "Everyday misconceptions—what's true and what's not.",
+  },
+];
+
+function isValidCategoryRecord(x: unknown): x is Category {
+  if (!x || typeof x !== "object") return false;
+  const o = x as Record<string, unknown>;
+  return (
+    typeof o.slug === "string" &&
+    o.slug.length > 0 &&
+    typeof o.name === "string" &&
+    o.name.length > 0 &&
+    typeof o.shortDescription === "string" &&
+    (o.highlight === undefined || typeof o.highlight === "boolean")
+  );
+}
+
+function parseCategoriesFile(raw: string): Category[] | null {
+  try {
+    const data = JSON.parse(raw) as unknown;
+    if (!Array.isArray(data) || data.length === 0) return null;
+    const out: Category[] = [];
+    const slugs = new Set<string>();
+    for (const item of data) {
+      if (!isValidCategoryRecord(item)) return null;
+      if (slugs.has(item.slug)) return null;
+      slugs.add(item.slug);
+      out.push({
+        slug: item.slug,
+        name: item.name,
+        shortDescription: item.shortDescription,
+        highlight: item.highlight,
+      });
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
+
+/** Categories for the public site and admin — read from `content/categories.json` with fallback. */
+export function getCategories(): Category[] {
+  try {
+    if (!fs.existsSync(CATEGORIES_FILE)) return DEFAULT_CATEGORIES;
+    const raw = fs.readFileSync(CATEGORIES_FILE, "utf8");
+    const parsed = parseCategoriesFile(raw);
+    return parsed ?? DEFAULT_CATEGORIES;
+  } catch {
+    return DEFAULT_CATEGORIES;
+  }
+}
+
+export function getCategoryBySlug(slug: string): Category | null {
+  return getCategories().find((c) => c.slug === slug) ?? null;
+}
+
+export function getCategoriesFilePath(): string {
+  return CATEGORIES_FILE;
+}
+
+export function writeCategoriesFile(categories: Category[]): void {
+  const dir = path.dirname(CATEGORIES_FILE);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(CATEGORIES_FILE, `${JSON.stringify(categories, null, 2)}\n`, "utf8");
+}
