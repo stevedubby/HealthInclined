@@ -47,17 +47,6 @@ export default function AdminLoginPage() {
 
       <div className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white/90 p-8 shadow-xl shadow-zinc-200/50 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/60 dark:shadow-black/40">
         <h1 className="text-xl font-bold text-zinc-900 dark:text-white">Sign in</h1>
-        <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-          Use the password from{" "}
-          <code className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-[11px] text-emerald-700 dark:bg-zinc-800 dark:text-emerald-400/90">
-            ADMIN_PASSWORD
-          </code>{" "}
-          in{" "}
-          <code className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-[11px] text-emerald-700 dark:bg-zinc-800 dark:text-emerald-400/90">
-            .env.local
-          </code>
-          .
-        </p>
 
         <form className="mt-6 space-y-4" onSubmit={onSubmit}>
           <label className="block text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-500">

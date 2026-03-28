@@ -18,12 +18,6 @@ export default function SiteFooter() {
             <Link className="text-sm font-semibold text-zinc-700 hover:text-emerald-800 dark:text-zinc-300 dark:hover:text-emerald-300" href="/blog">
               Blog
             </Link>
-            <Link
-              className="text-sm font-semibold text-zinc-700 hover:text-emerald-800 dark:text-zinc-300 dark:hover:text-emerald-300"
-              href="/category/body-signals"
-            >
-              Why Your Body Does This
-            </Link>
             <Link className="text-sm font-semibold text-zinc-700 hover:text-emerald-800 dark:text-zinc-300 dark:hover:text-emerald-300" href="/videos">
               Videos
             </Link>
