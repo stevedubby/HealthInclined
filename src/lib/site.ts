@@ -10,17 +10,14 @@ export const SITE = {
   /** Set `CONTACT_EMAIL` in `.env.local` (falls back if unset). */
   contactEmail:
     (typeof process !== "undefined" && process.env.CONTACT_EMAIL?.trim()) ||
-    "you@example.com",
+    "contacthealthinclined@gmail.com",
 
-  /**
-   * Replace `#` with your profile URLs when ready.
-   * Example: "https://www.youtube.com/@yourchannel"
-   */
   socialLinks: {
-    youtube: "#",
-    instagram: "#",
-    tiktok: "#",
-    facebook: "#",
+    youtube: "https://www.youtube.com/@healthinclined",
+    instagram: "https://www.instagram.com/healthinclinedvigo/",
+    tiktok: "https://www.tiktok.com/@healthinclined",
+    facebook:
+      "https://www.facebook.com/share/14cwR8pmHFh/?mibextid=wwXIfr",
   } as const,
 };
 

@@ -19,8 +19,12 @@ export default function AboutPage() {
         </h1>
 
         <div className="mt-6 rounded-3xl border border-emerald-100 bg-white p-6 sm:p-8 dark:border-emerald-900 dark:bg-zinc-900">
+          {/*
+            Default: intro, then image above or beside “About the Creator” (not at the very bottom).
+            sm+: image sits beside creator copy; md+: intro column + sticky image + creator column.
+          */}
           <div className="grid gap-6 md:grid-cols-[1.2fr_0.8fr] md:items-start">
-            <div className="space-y-8">
+            <div className="min-w-0 space-y-8">
               <section>
                 <p className="text-base leading-7 text-zinc-700 dark:text-zinc-300">
                   Healthinclined is a health education platform focused on helping you
@@ -109,50 +113,54 @@ export default function AboutPage() {
                   accessibility and engagement.
                 </p>
               </section>
-
-              <section>
-                <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-                  About the Creator
-                </h2>
-                <p className="mt-3 text-base leading-7 text-zinc-700 dark:text-zinc-300">
-                  Healthinclined is developed and maintained by an independent health
-                  researcher with a strong focus on studying body patterns, simplifying
-                  health information, and making practical knowledge more accessible.
-                </p>
-                <p className="mt-4 text-base leading-7 text-zinc-700 dark:text-zinc-300">
-                  In addition to Healthinclined, other niche-focused platforms have
-                  been developed within the health space, including RecoveryHunt, which
-                  focuses specifically on smoker-related health and recovery.
-                </p>
-                <p className="mt-4 text-base font-semibold leading-7 text-zinc-900 dark:text-zinc-100">
-                  - Ejianya Chidubem Steven
-                </p>
-              </section>
-
-              <section className="rounded-2xl border border-emerald-100 bg-emerald-50/30 p-4 dark:border-emerald-900 dark:bg-emerald-950/20">
-                <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
-                  Note
-                </h2>
-                <p className="mt-2 text-base leading-7 text-zinc-700 dark:text-zinc-300">
-                  Content on this platform is provided for educational purposes only
-                  and should not be considered a substitute for professional medical
-                  advice.
-                </p>
-              </section>
             </div>
 
-            <aside className="md:sticky md:top-24">
-              <div className="overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-sm dark:border-emerald-900 dark:bg-zinc-900">
-                <Image
-                  src="/myaboutimage.jpeg"
-                  alt="About the creator of Healthinclined"
-                  width={900}
-                  height={1100}
-                  className="h-auto w-full object-cover"
-                  priority
-                />
+            <div className="grid gap-6 sm:grid-cols-[minmax(0,11rem)_1fr] sm:items-start md:contents">
+              <aside className="mx-auto w-full max-w-sm sm:mx-0 sm:max-w-none md:sticky md:top-24 md:row-span-2 md:self-start">
+                <div className="overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-sm dark:border-emerald-900 dark:bg-zinc-900">
+                  <Image
+                    src="/myaboutimage.jpeg"
+                    alt="About the creator of Healthinclined"
+                    width={900}
+                    height={1100}
+                    className="h-auto w-full max-h-[min(70vh,520px)] object-cover object-top md:max-h-none"
+                    priority
+                  />
+                </div>
+              </aside>
+
+              <div className="min-w-0 space-y-8 md:col-start-1">
+                <section>
+                  <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+                    About the Creator
+                  </h2>
+                  <p className="mt-3 text-base leading-7 text-zinc-700 dark:text-zinc-300">
+                    Healthinclined is developed and maintained by an independent health
+                    researcher with a strong focus on studying body patterns, simplifying
+                    health information, and making practical knowledge more accessible.
+                  </p>
+                  <p className="mt-4 text-base leading-7 text-zinc-700 dark:text-zinc-300">
+                    In addition to Healthinclined, other niche-focused platforms have
+                    been developed within the health space, including RecoveryHunt, which
+                    focuses specifically on smoker-related health and recovery.
+                  </p>
+                  <p className="mt-4 text-base font-semibold leading-7 text-zinc-900 dark:text-zinc-100">
+                    - Ejianya Chidubem Steven
+                  </p>
+                </section>
+
+                <section className="rounded-2xl border border-emerald-100 bg-emerald-50/30 p-4 dark:border-emerald-900 dark:bg-emerald-950/20">
+                  <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
+                    Note
+                  </h2>
+                  <p className="mt-2 text-base leading-7 text-zinc-700 dark:text-zinc-300">
+                    Content on this platform is provided for educational purposes only
+                    and should not be considered a substitute for professional medical
+                    advice.
+                  </p>
+                </section>
               </div>
-            </aside>
+            </div>
           </div>
         </div>
       </div>
