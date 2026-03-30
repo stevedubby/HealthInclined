@@ -19,7 +19,7 @@ export default function SiteHeader() {
       </a>
 
       <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-6">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 sm:gap-x-3">
           <Link href="/" className="group inline-flex items-center gap-3">
             <Image
               src="/myhealthinclinedlogo.png"
@@ -27,15 +27,23 @@ export default function SiteHeader() {
               width={40}
               height={40}
               priority
-              className="h-10 w-10 rounded-full object-cover ring-1 ring-emerald-200 dark:ring-emerald-800"
+              className="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-emerald-200 dark:ring-emerald-800"
             />
             <span className="text-lg font-extrabold tracking-tight text-emerald-900 group-hover:underline dark:text-emerald-300">
               Healthinclined
             </span>
-            <span className="text-xs font-semibold text-emerald-700">
-              powered by healthinclined.com
-            </span>
           </Link>
+          <span className="text-xs font-semibold text-emerald-700">
+            In collaboration with{" "}
+            <a
+              href="https://recoveryhunt.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:text-emerald-900 dark:hover:text-emerald-200"
+            >
+              recoveryhunt.com
+            </a>
+          </span>
         </div>
 
         <div className="flex items-center gap-3">
