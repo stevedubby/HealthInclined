@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import ThemeToggle from "@/components/ThemeToggle";
 
 const NAV = [
@@ -19,7 +20,15 @@ export default function SiteHeader() {
 
       <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-6">
         <div className="flex items-center gap-2">
-          <Link href="/" className="group inline-flex items-baseline gap-2">
+          <Link href="/" className="group inline-flex items-center gap-3">
+            <Image
+              src="/myhealthinclinedlogo.png"
+              alt="Healthinclined logo"
+              width={40}
+              height={40}
+              priority
+              className="h-10 w-10 rounded-full object-cover ring-1 ring-emerald-200 dark:ring-emerald-800"
+            />
             <span className="text-lg font-extrabold tracking-tight text-emerald-900 group-hover:underline dark:text-emerald-300">
               Healthinclined
             </span>

@@ -22,16 +22,44 @@ export const metadata: Metadata = {
     default: "Healthinclined",
     template: "%s | Healthinclined",
   },
+  applicationName: "Healthinclined",
   description:
     "Simple health education about everyday body symptoms. Clear explanations and practical, non-diagnostic guidance.",
+  keywords: [
+    "health education",
+    "everyday symptoms",
+    "wellness blog",
+    "healthinclined",
+    "body symptoms guide",
+  ],
+  alternates: {
+    canonical: "https://recoveryhunt.com",
+  },
+  icons: {
+    icon: [
+      { url: "/favicon.ico", type: "image/x-icon" },
+      { url: "/myhealthinclinedlogo.png", sizes: "32x32", type: "image/png" },
+      { url: "/myhealthinclinedlogo.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: [{ url: "/myhealthinclinedlogo.png", sizes: "180x180", type: "image/png" }],
+    shortcut: ["/myhealthinclinedlogo.png"],
+  },
   openGraph: {
     type: "website",
     locale: "en_US",
     url: "https://recoveryhunt.com",
-    images: [{ url: "https://recoveryhunt.com/favicon.ico" }],
+    siteName: "Healthinclined",
+    title: "Healthinclined",
+    description:
+      "Simple health education about everyday body symptoms. Clear explanations and practical, non-diagnostic guidance.",
+    images: [{ url: "https://recoveryhunt.com/myhealthinclinedlogo.png" }],
   },
   twitter: {
     card: "summary",
+    title: "Healthinclined",
+    description:
+      "Simple health education about everyday body symptoms. Clear explanations and practical, non-diagnostic guidance.",
+    images: ["https://recoveryhunt.com/myhealthinclinedlogo.png"],
   },
   robots: {
     index: true,
