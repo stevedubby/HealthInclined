@@ -11,6 +11,7 @@ import { getAllEmbeddedVideos } from "@/lib/videos";
 export default async function Home() {
   const categories = getCategories();
   const posts = getAllPosts();
+  const highlightedCategory = categories.find((c) => c.highlight) ?? categories[0] ?? null;
   const featured = posts.slice(0, 6);
   const videos = getAllEmbeddedVideos();
   const primaryVideo = videos[0];
@@ -42,10 +43,10 @@ export default async function Home() {
                   Start Reading
                 </Link>
                 <Link
-                  href="/category/body-signals"
+                  href={highlightedCategory ? `/category/${highlightedCategory.slug}` : "/blog"}
                   className="inline-flex items-center justify-center rounded-2xl border border-emerald-200 bg-white px-6 py-3 text-base font-semibold text-emerald-800 transition hover:bg-emerald-50 dark:border-emerald-800 dark:bg-zinc-900 dark:text-emerald-300 dark:hover:bg-zinc-800"
                 >
-                  Why Your Body Does This
+                  {highlightedCategory?.name ?? "Explore categories"}
                 </Link>
               </div>
 
@@ -169,10 +170,10 @@ export default async function Home() {
                   Recommended next step
                 </div>
                 <Link
-                  href="/category/body-signals"
+                  href={highlightedCategory ? `/category/${highlightedCategory.slug}` : "/blog"}
                   className="mt-3 inline-flex w-full items-center justify-center rounded-2xl bg-emerald-700 px-5 py-3 text-base font-semibold text-white transition hover:bg-emerald-800"
                 >
-                  Explore Body Signals
+                  {highlightedCategory ? `Explore ${highlightedCategory.name}` : "Explore categories"}
                 </Link>
                 <div className="mt-3 text-xs leading-5 text-zinc-600 dark:text-zinc-400">
                   Built for short-form traffic: quick context, simple steps, and

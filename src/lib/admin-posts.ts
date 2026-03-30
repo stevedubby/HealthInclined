@@ -18,7 +18,7 @@ export function parseRelatedLines(text: string): RelatedLink[] {
     if (pipe === -1) continue;
     const slug = trimmed.slice(0, pipe).trim();
     const anchor = trimmed.slice(pipe + 1).trim();
-    if (slug && anchor) out.push({ slug, anchor });
+    if (isValidSlug(slug) && anchor) out.push({ slug, anchor });
   }
   return out;
 }
