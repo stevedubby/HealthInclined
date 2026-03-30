@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Container from "@/components/Container";
 import { SITE } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "About | Healthinclined",
-  description: "Learn how Healthinclined writes simple, non-diagnostic health education.",
+  description:
+    "Learn about Healthinclined, a structured and research-based health education platform.",
   alternates: { canonical: `${SITE.baseUrl}/about` },
 };
 
@@ -17,36 +19,140 @@ export default function AboutPage() {
         </h1>
 
         <div className="mt-6 rounded-3xl border border-emerald-100 bg-white p-6 sm:p-8 dark:border-emerald-900 dark:bg-zinc-900">
-          <p className="text-base leading-7 text-zinc-700 dark:text-zinc-300">
-            Healthinclined provides clear, science-backed explanations for everyday
-            body symptoms &amp; Health Education, helping you understand what your body
-            is signaling and practical steps you can take.
-          </p>
+          <div className="grid gap-6 md:grid-cols-[1.2fr_0.8fr] md:items-start">
+            <div className="space-y-8">
+              <section>
+                <p className="text-base leading-7 text-zinc-700 dark:text-zinc-300">
+                  Healthinclined is a health education platform focused on helping you
+                  understand what your body is communicating-clearly, simply, and
+                  without confusion.
+                </p>
+                <p className="mt-4 text-base leading-7 text-zinc-700 dark:text-zinc-300">
+                  Everyday symptoms such as eye twitching, numbness, or changes in the
+                  body are often misunderstood. This can lead to unnecessary worry,
+                  misinformation, or poor decision-making.
+                </p>
+                <p className="mt-4 text-base leading-7 text-zinc-700 dark:text-zinc-300">
+                  Healthinclined was created to provide clear, structured explanations
+                  of these common experiences using widely accepted health knowledge,
+                  presented in a way that is easy to follow and practical to apply.
+                </p>
+              </section>
 
-          <h2 className="mt-8 text-2xl font-bold text-zinc-900 dark:text-zinc-100">Our philosophy</h2>
+              <section>
+                <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+                  How It Works
+                </h2>
+                <p className="mt-3 text-base leading-7 text-zinc-700 dark:text-zinc-300">
+                  Each topic is approached with a consistent framework:
+                </p>
+                <ul className="mt-4 list-disc space-y-2 pl-5 text-base leading-7 text-zinc-700 dark:text-zinc-300">
+                  <li>Identifying the symptom</li>
+                  <li>Explaining common underlying causes</li>
+                  <li>
+                    Distinguishing between normal occurrences and situations that may
+                    require attention
+                  </li>
+                  <li>Outlining practical steps that can be considered</li>
+                </ul>
+                <p className="mt-4 text-base leading-7 text-zinc-700 dark:text-zinc-300">
+                  This structured approach allows for clearer understanding and more
+                  confident decision-making.
+                </p>
+              </section>
 
-          <ul className="mt-4 list-disc pl-5 text-base leading-7 text-zinc-700 dark:text-zinc-300">
-            <li>Simplicity</li>
-            <li>Clarity</li>
-            <li>Helpful guidance</li>
-            <li>Education-first content</li>
-          </ul>
+              <section>
+                <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+                  Why Trust This Platform
+                </h2>
+                <p className="mt-3 text-base leading-7 text-zinc-700 dark:text-zinc-300">
+                  Healthinclined is built on careful research and a commitment to
+                  clarity.
+                </p>
+                <p className="mt-4 text-base leading-7 text-zinc-700 dark:text-zinc-300">
+                  All content is grounded in general scientific understanding and
+                  commonly accepted health information, simplified into accessible
+                  insights without unnecessary complexity.
+                </p>
+                <p className="mt-4 text-base leading-7 text-zinc-700 dark:text-zinc-300">
+                  The focus is not on speculation or diagnosis, but on responsible,
+                  educational explanations that help users better understand their
+                  bodies.
+                </p>
+              </section>
 
-          <p className="mt-6 text-base leading-7 text-zinc-700 dark:text-zinc-300">
-            {SITE.trustLine}
-          </p>
+              <section>
+                <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+                  The Approach
+                </h2>
+                <p className="mt-3 text-base leading-7 text-zinc-700 dark:text-zinc-300">
+                  Content on Healthinclined is designed to be:
+                </p>
+                <ul className="mt-4 list-disc space-y-2 pl-5 text-base leading-7 text-zinc-700 dark:text-zinc-300">
+                  <li>Clear</li>
+                  <li>Practical</li>
+                  <li>Easy to understand</li>
+                </ul>
+                <p className="mt-4 text-base leading-7 text-zinc-700 dark:text-zinc-300">
+                  The objective is to make reliable health information more accessible,
+                  while maintaining a calm and responsible tone.
+                </p>
+              </section>
 
-          <h2 className="mt-8 text-2xl font-bold text-zinc-900 dark:text-zinc-100">Future-ready (optional)</h2>
-          <p className="mt-3 text-base leading-7 text-zinc-700 dark:text-zinc-300">
-            Email capture can be added later for readers who want reminders about new
-            posts in their favorite categories.
-          </p>
+              <section>
+                <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+                  Platform Structure
+                </h2>
+                <p className="mt-3 text-base leading-7 text-zinc-700 dark:text-zinc-300">
+                  Healthinclined operates as a blog-first platform, where each topic is
+                  explained in detail and supported by short-form content for broader
+                  accessibility and engagement.
+                </p>
+              </section>
 
-          <div className="mt-6 rounded-2xl border border-emerald-100 bg-emerald-50/30 p-4 dark:border-emerald-900 dark:bg-emerald-950/20">
-            <div className="text-sm font-semibold text-emerald-900">Email signup placeholder</div>
-            <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-              (Optional future feature) Add your email capture component here.
-            </p>
+              <section>
+                <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+                  About the Creator
+                </h2>
+                <p className="mt-3 text-base leading-7 text-zinc-700 dark:text-zinc-300">
+                  Healthinclined is developed and maintained by an independent health
+                  researcher with a strong focus on studying body patterns, simplifying
+                  health information, and making practical knowledge more accessible.
+                </p>
+                <p className="mt-4 text-base leading-7 text-zinc-700 dark:text-zinc-300">
+                  In addition to Healthinclined, other niche-focused platforms have
+                  been developed within the health space, including RecoveryHunt, which
+                  focuses specifically on smoker-related health and recovery.
+                </p>
+                <p className="mt-4 text-base font-semibold leading-7 text-zinc-900 dark:text-zinc-100">
+                  - Ejianya Chidubem Steven
+                </p>
+              </section>
+
+              <section className="rounded-2xl border border-emerald-100 bg-emerald-50/30 p-4 dark:border-emerald-900 dark:bg-emerald-950/20">
+                <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
+                  Note
+                </h2>
+                <p className="mt-2 text-base leading-7 text-zinc-700 dark:text-zinc-300">
+                  Content on this platform is provided for educational purposes only
+                  and should not be considered a substitute for professional medical
+                  advice.
+                </p>
+              </section>
+            </div>
+
+            <aside className="md:sticky md:top-24">
+              <div className="overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-sm dark:border-emerald-900 dark:bg-zinc-900">
+                <Image
+                  src="/myaboutimage.jpeg"
+                  alt="About the creator of Healthinclined"
+                  width={900}
+                  height={1100}
+                  className="h-auto w-full object-cover"
+                  priority
+                />
+              </div>
+            </aside>
           </div>
         </div>
       </div>
