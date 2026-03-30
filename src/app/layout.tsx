@@ -3,6 +3,7 @@ import { Fraunces, Outfit } from "next/font/google";
 import "./globals.css";
 import ThemeProvider from "@/components/ThemeProvider";
 import SiteChrome from "@/components/SiteChrome";
+import { SITE } from "@/lib/site";
 
 const outfit = Outfit({
   subsets: ["latin"],
@@ -17,7 +18,7 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://recoveryhunt.com"),
+  metadataBase: new URL(SITE.baseUrl),
   title: {
     default: "Healthinclined",
     template: "%s | Healthinclined",
@@ -33,7 +34,7 @@ export const metadata: Metadata = {
     "body symptoms guide",
   ],
   alternates: {
-    canonical: "https://recoveryhunt.com",
+    canonical: SITE.baseUrl,
   },
   icons: {
     icon: [
@@ -47,19 +48,19 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "https://recoveryhunt.com",
+    url: SITE.baseUrl,
     siteName: "Healthinclined",
     title: "Healthinclined",
     description:
       "Simple health education about everyday body symptoms. Clear explanations and practical, non-diagnostic guidance.",
-    images: [{ url: "https://recoveryhunt.com/myhealthinclinedlogo.png" }],
+    images: [{ url: `${SITE.baseUrl}/myhealthinclinedlogo.png` }],
   },
   twitter: {
     card: "summary",
     title: "Healthinclined",
     description:
       "Simple health education about everyday body symptoms. Clear explanations and practical, non-diagnostic guidance.",
-    images: ["https://recoveryhunt.com/myhealthinclinedlogo.png"],
+    images: [`${SITE.baseUrl}/myhealthinclinedlogo.png`],
   },
   robots: {
     index: true,

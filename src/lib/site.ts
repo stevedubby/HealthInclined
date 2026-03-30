@@ -1,7 +1,7 @@
 export const SITE = {
   name: "Healthinclined",
-  domain: "recoveryhunt.com",
-  baseUrl: "https://recoveryhunt.com",
+  domain: "healthinclined.com",
+  baseUrl: "https://healthinclined.com",
   tagline: "Simple health education about everyday body symptoms.",
   // Keep messaging calm and non-diagnostic.
   trustLine:

@@ -33,7 +33,7 @@ export default function SiteHeader() {
               Healthinclined
             </span>
             <span className="text-xs font-semibold text-emerald-700">
-              powered by recoveryhunt.com
+              powered by healthinclined.com
             </span>
           </Link>
         </div>
