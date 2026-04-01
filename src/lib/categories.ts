@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { getReadContentRoots, getWritableContentRoot } from "@/lib/content-paths";
 
 export type Category = {
   slug: string;
@@ -8,7 +9,13 @@ export type Category = {
   highlight?: boolean;
 };
 
-const CATEGORIES_FILE = path.join(process.cwd(), "content", "categories.json");
+function getCategoriesFilePathWritable(): string {
+  return path.join(getWritableContentRoot(), "categories.json");
+}
+
+function getCategoriesReadPaths(): string[] {
+  return getReadContentRoots().map((root) => path.join(root, "categories.json"));
+}
 
 export const DEFAULT_CATEGORIES: Category[] = [
   {
@@ -78,10 +85,13 @@ function parseCategoriesFile(raw: string): Category[] | null {
 /** Categories for the public site and admin — read from `content/categories.json` with fallback. */
 export function getCategories(): Category[] {
   try {
-    if (!fs.existsSync(CATEGORIES_FILE)) return DEFAULT_CATEGORIES;
-    const raw = fs.readFileSync(CATEGORIES_FILE, "utf8");
-    const parsed = parseCategoriesFile(raw);
-    return parsed ?? DEFAULT_CATEGORIES;
+    for (const filePath of getCategoriesReadPaths()) {
+      if (!fs.existsSync(filePath)) continue;
+      const raw = fs.readFileSync(filePath, "utf8");
+      const parsed = parseCategoriesFile(raw);
+      if (parsed) return parsed;
+    }
+    return DEFAULT_CATEGORIES;
   } catch {
     return DEFAULT_CATEGORIES;
   }
@@ -92,11 +102,12 @@ export function getCategoryBySlug(slug: string): Category | null {
 }
 
 export function getCategoriesFilePath(): string {
-  return CATEGORIES_FILE;
+  return getCategoriesFilePathWritable();
 }
 
 export function writeCategoriesFile(categories: Category[]): void {
-  const dir = path.dirname(CATEGORIES_FILE);
+  const target = getCategoriesFilePathWritable();
+  const dir = path.dirname(target);
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(CATEGORIES_FILE, `${JSON.stringify(categories, null, 2)}\n`, "utf8");
+  fs.writeFileSync(target, `${JSON.stringify(categories, null, 2)}\n`, "utf8");
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { Category } from "@/lib/categories";
 
@@ -73,6 +73,7 @@ export default function AdminArticleEditor({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const bodyRef = useRef<HTMLTextAreaElement | null>(null);
 
   const metaTitle = useMemo(() => effectiveMetaTitle(seoTitle, title), [seoTitle, title]);
   const metaTitleLen = metaTitle.length;
@@ -216,6 +217,35 @@ export default function AdminArticleEditor({
     } finally {
       setSaving(false);
     }
+  }
+
+  function wrapBodySelection(prefix: string, suffix: string = prefix) {
+    const el = bodyRef.current;
+    if (!el) return;
+    const start = el.selectionStart ?? 0;
+    const end = el.selectionEnd ?? 0;
+    const selected = body.slice(start, end);
+    const replacement = `${prefix}${selected || "text"}${suffix}`;
+    const next = `${body.slice(0, start)}${replacement}${body.slice(end)}`;
+    setBody(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      const cursor = start + replacement.length;
+      el.setSelectionRange(cursor, cursor);
+    });
+  }
+
+  function insertBodyAtCursor(snippet: string) {
+    const el = bodyRef.current;
+    if (!el) return;
+    const start = el.selectionStart ?? body.length;
+    const next = `${body.slice(0, start)}${snippet}${body.slice(start)}`;
+    setBody(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      const cursor = start + snippet.length;
+      el.setSelectionRange(cursor, cursor);
+    });
   }
 
   if (loading) {
@@ -452,7 +482,49 @@ export default function AdminArticleEditor({
           <section className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-5 dark:border-emerald-500/20 dark:bg-zinc-900/60 sm:p-6">
             <h2 className="text-sm font-semibold text-emerald-900 dark:text-emerald-200/90">Article body</h2>
             <p className="mt-1 text-xs text-zinc-500">Markdown — headings, lists, links supported.</p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => wrapBodySelection("**")}
+                className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+              >
+                Bold
+              </button>
+              <button
+                type="button"
+                onClick={() => wrapBodySelection("<u>", "</u>")}
+                className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+              >
+                Underline
+              </button>
+              <button
+                type="button"
+                onClick={() => wrapBodySelection("[", "](https://)")}
+                className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+              >
+                Link
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  insertBodyAtCursor(
+                    "\n![Describe image](https://example.com/image.jpg)\n",
+                  )
+                }
+                className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+              >
+                Image
+              </button>
+              <button
+                type="button"
+                onClick={() => insertBodyAtCursor("\n## Section heading\n")}
+                className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+              >
+                H2
+              </button>
+            </div>
             <textarea
+              ref={bodyRef}
               value={body}
               onChange={(ev) => setBody(ev.target.value)}
               rows={22}

@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import matter from "gray-matter";
+import { getReadContentRoots } from "@/lib/content-paths";
 
 export type VideoSpec = {
   platform: "youtube" | "tiktok";
@@ -34,8 +35,6 @@ export type Post = PostFrontmatter & {
   content: string;
 };
 
-const CONTENT_DIR = path.join(process.cwd(), "content", "blog");
-
 function readPostFile(filePath: string): { frontmatter: PostFrontmatter; content: string } {
   const raw = fs.readFileSync(filePath, "utf8");
   const parsed = matter(raw);
@@ -45,18 +44,26 @@ function readPostFile(filePath: string): { frontmatter: PostFrontmatter; content
 }
 
 export function getAllPostSlugs(): string[] {
-  if (!fs.existsSync(CONTENT_DIR)) return [];
-  return fs
-    .readdirSync(CONTENT_DIR)
-    .filter((name) => name.endsWith(".md"))
-    .map((name) => name.replace(/\.md$/, ""));
+  const seen = new Set<string>();
+  for (const root of getReadContentRoots()) {
+    const dir = path.join(root, "blog");
+    if (!fs.existsSync(dir)) continue;
+    for (const name of fs.readdirSync(dir)) {
+      if (!name.endsWith(".md")) continue;
+      seen.add(name.replace(/\.md$/, ""));
+    }
+  }
+  return Array.from(seen);
 }
 
 function loadPostFromDisk(slug: string): Post | null {
-  const filePath = path.join(CONTENT_DIR, `${slug}.md`);
-  if (!fs.existsSync(filePath)) return null;
-  const { frontmatter, content } = readPostFile(filePath);
-  return { slug, content, ...frontmatter };
+  for (const root of getReadContentRoots()) {
+    const filePath = path.join(root, "blog", `${slug}.md`);
+    if (!fs.existsSync(filePath)) continue;
+    const { frontmatter, content } = readPostFile(filePath);
+    return { slug, content, ...frontmatter };
+  }
+  return null;
 }
 
 function loadAllPostsFromDisk(): Post[] {
