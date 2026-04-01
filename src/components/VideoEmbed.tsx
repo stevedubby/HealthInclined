@@ -1,4 +1,5 @@
 import type { VideoSpec } from "@/lib/content/posts";
+import { parseTikTokVideoId } from "@/lib/tiktok-id";
 import { parseYoutubeVideoId } from "@/lib/youtube-id";
 
 export default function VideoEmbed({
@@ -46,7 +47,20 @@ export default function VideoEmbed({
   }
 
   // TikTok embed (foundation: replace IDs with your own)
-  const src = `https://www.tiktok.com/embed/v2/${encodeURIComponent(id)}?lang=en`;
+  const normalizedTikTok = parseTikTokVideoId(id);
+  if (!normalizedTikTok) {
+    return (
+      <div className="w-full rounded-2xl border border-amber-200 bg-amber-50 px-4 py-6 text-center text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-950/30 dark:text-amber-100">
+        <p className="font-medium">TikTok video could not be embedded</p>
+        <p className="mt-1 text-amber-800/90 dark:text-amber-200/90">
+          Edit this post in admin and paste the full TikTok video URL (with /video/ and numbers) or the numeric video ID
+          only. Short vm.tiktok.com links must be opened in a browser first, then copy the full URL.
+        </p>
+      </div>
+    );
+  }
+
+  const src = `https://www.tiktok.com/embed/v2/${encodeURIComponent(normalizedTikTok)}?lang=en`;
 
   return (
     <div className="w-full overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-sm dark:border-emerald-900 dark:bg-zinc-900">

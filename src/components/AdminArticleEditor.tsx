@@ -10,6 +10,7 @@ import {
   isValidArticleBody,
   markdownToTiptapJson,
 } from "@/lib/tiptap-article";
+import { parseTikTokVideoId } from "@/lib/tiktok-id";
 import { parseYoutubeVideoId } from "@/lib/youtube-id";
 
 function effectiveMetaTitle(seoTitle: string, title: string): string {
@@ -112,9 +113,14 @@ export default function AdminArticleEditor({
         if (fm.video) {
           setVideoPlatform(fm.video.platform as "youtube" | "tiktok");
           const vid = fm.video.id;
-          setVideoId(
-            fm.video.platform === "youtube" ? parseYoutubeVideoId(vid) ?? vid : vid,
-          );
+          const platform = fm.video.platform;
+          if (platform === "youtube") {
+            setVideoId(parseYoutubeVideoId(vid) ?? vid);
+          } else if (platform === "tiktok") {
+            setVideoId(parseTikTokVideoId(vid) ?? vid);
+          } else {
+            setVideoId(vid);
+          }
           setVideoTitle(fm.video.title ?? "");
         }
 
@@ -158,6 +164,15 @@ export default function AdminArticleEditor({
       if (!parsed) {
         setError(
           "Could not read that YouTube link. Paste a Shorts URL (youtube.com/shorts/…), a watch link, youtu.be/…, or the 11-character video ID.",
+        );
+        return;
+      }
+      videoIdOut = parsed;
+    } else if (videoPlatform === "tiktok" && vidTrim) {
+      const parsed = parseTikTokVideoId(vidTrim);
+      if (!parsed) {
+        setError(
+          "Could not read that TikTok link. Paste the full video URL from tiktok.com (with /video/…) or the numeric video ID. Short vm.tiktok.com links: open in a browser, then copy the full URL from the address bar.",
         );
         return;
       }
@@ -207,7 +222,7 @@ export default function AdminArticleEditor({
         setSaving(false);
         return;
       }
-      if (videoPlatform === "youtube" && videoIdOut) {
+      if ((videoPlatform === "youtube" || videoPlatform === "tiktok") && videoIdOut) {
         setVideoId(videoIdOut);
       }
       if (nextPublished !== "keep") {
@@ -413,9 +428,12 @@ export default function AdminArticleEditor({
           <section className={`rounded-2xl border ${borderB} bg-white/70 p-5 dark:bg-zinc-900/40 sm:p-6`}>
             <h2 className={sectionTitle}>Video (optional)</h2>
             <p className="mt-1 text-xs text-zinc-500">
-              For YouTube, paste a <strong className="font-medium text-zinc-600 dark:text-zinc-400">Shorts link</strong>,{" "}
-              <strong className="font-medium text-zinc-600 dark:text-zinc-400">watch URL</strong>, or the 11-character ID
-              — we normalize it automatically.
+              <strong className="font-medium text-zinc-600 dark:text-zinc-400">YouTube:</strong> paste a Shorts link,
+              watch URL, or ID — we normalize it.{" "}
+              <strong className="font-medium text-zinc-600 dark:text-zinc-400">TikTok:</strong> paste the full{" "}
+              <code className="rounded bg-zinc-100 px-1 text-[11px] dark:bg-zinc-800">tiktok.com/.../video/…</code> URL or
+              the numeric ID. Short <code className="rounded bg-zinc-100 px-1 text-[11px] dark:bg-zinc-800">vm.tiktok.com</code>{" "}
+              links: open in a browser first, then copy the URL from the address bar.
             </p>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <label className={labelClass}>
@@ -432,12 +450,12 @@ export default function AdminArticleEditor({
               </label>
               <label className={labelClass}>
                 Video ID or full URL{" "}
-                <span className="font-normal normal-case text-zinc-400 dark:text-zinc-600">(YouTube)</span>
+                <span className="font-normal normal-case text-zinc-400 dark:text-zinc-600">(YouTube / TikTok)</span>
                 <input
                   value={videoId}
                   onChange={(ev) => setVideoId(ev.target.value)}
                   className={`${inputClass} font-mono text-xs`}
-                  placeholder="https://www.youtube.com/shorts/… or 11-character ID"
+                  placeholder="YouTube Shorts URL or TikTok …/video/… link / numeric ID"
                 />
               </label>
               <label className={labelClass}>

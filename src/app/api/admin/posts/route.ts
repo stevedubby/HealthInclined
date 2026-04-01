@@ -11,6 +11,7 @@ import {
 } from "@/lib/admin-posts";
 import { getCategoriesAsync } from "@/lib/categories";
 import { isValidArticleBody } from "@/lib/tiptap-article";
+import { parseTikTokVideoId } from "@/lib/tiktok-id";
 import { parseYoutubeVideoId } from "@/lib/youtube-id";
 
 export async function GET() {
@@ -133,6 +134,22 @@ export async function POST(req: Request) {
           {
             error:
               "Invalid YouTube URL or ID. Paste a Shorts link, watch URL (with v=), youtu.be link, or the 11-character video ID.",
+          },
+          { status: 400 },
+        );
+      }
+      frontmatter.video = {
+        platform: vp,
+        id: vid,
+        title: body.videoTitle?.trim() || undefined,
+      };
+    } else if (vp === "tiktok") {
+      const vid = parseTikTokVideoId(vidRaw);
+      if (!vid) {
+        return NextResponse.json(
+          {
+            error:
+              "Invalid TikTok URL or ID. Paste the full video URL (must contain /video/ and the numeric ID) or paste the numeric video ID only.",
           },
           { status: 400 },
         );
