@@ -1,11 +1,13 @@
 import Link from "next/link";
 import AdminThemeToggle from "@/components/AdminThemeToggle";
 import AdminUnpublishButton from "@/components/AdminUnpublishButton";
-import { getCategoryBySlug } from "@/lib/categories";
-import { getAllPostsAdmin } from "@/lib/content/posts";
+import { getCategoriesAsync } from "@/lib/categories";
+import { getAllPostsAdminAsync } from "@/lib/content/posts";
 
-export default function AdminDashboardPage() {
-  const posts = getAllPostsAdmin();
+export default async function AdminDashboardPage() {
+  const posts = await getAllPostsAdminAsync();
+  const categories = await getCategoriesAsync();
+  const categoryBySlug = new Map(categories.map((c) => [c.slug, c]));
   const live = posts.filter((p) => p.published !== false).length;
   const drafts = posts.length - live;
 
@@ -85,7 +87,7 @@ export default function AdminDashboardPage() {
             <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
               {posts.map((p) => {
                 const isLive = p.published !== false;
-                const cat = getCategoryBySlug(p.category);
+                const cat = categoryBySlug.get(p.category);
                 return (
                   <tr key={p.slug} className="text-zinc-700 dark:text-zinc-300">
                     <td className="px-4 py-3">

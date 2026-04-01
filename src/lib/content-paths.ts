@@ -25,3 +25,13 @@ export function getReadContentRoots(): string[] {
   const bundled = getBundledContentRoot();
   return writable === bundled ? [bundled] : [writable, bundled];
 }
+
+export function hasPersistentContentStore(): boolean {
+  if (process.env.DATABASE_URL?.trim()) return true;
+  if (!process.env.VERCEL) return true;
+  return Boolean(process.env.CONTENT_DATA_DIR?.trim());
+}
+
+export function getPersistenceErrorMessage(): string {
+  return "Content writes are disabled on this hosted runtime without persistent storage. Set CONTENT_DATA_DIR (persistent volume) or manage content locally then deploy.";
+}

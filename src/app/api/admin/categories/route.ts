@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/admin-api";
 import { isValidSlug } from "@/lib/admin-posts";
-import { getCategories, writeCategoriesFile, type Category } from "@/lib/categories";
+import { getCategoriesAsync, saveCategoriesAsync, type Category } from "@/lib/categories";
+import { getPersistenceErrorMessage, hasPersistentContentStore } from "@/lib/content-paths";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,7 @@ export async function GET() {
   if (!auth.ok) {
     return NextResponse.json({ error: auth.message }, { status: auth.status });
   }
-  return NextResponse.json({ categories: getCategories() });
+  return NextResponse.json({ categories: await getCategoriesAsync() });
 }
 
 type CreateBody = {
@@ -21,6 +22,10 @@ type CreateBody = {
 };
 
 export async function POST(req: Request) {
+  if (!hasPersistentContentStore()) {
+    return NextResponse.json({ error: getPersistenceErrorMessage() }, { status: 503 });
+  }
+
   const auth = await requireAdminSession();
   if (!auth.ok) {
     return NextResponse.json({ error: auth.message }, { status: auth.status });
@@ -49,7 +54,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "name and shortDescription are required" }, { status: 400 });
   }
 
-  const list = getCategories();
+  const list = await getCategoriesAsync();
   if (list.some((c) => c.slug === slug)) {
     return NextResponse.json({ error: "A category with this slug already exists" }, { status: 409 });
   }
@@ -65,7 +70,7 @@ export async function POST(req: Request) {
   ];
 
   try {
-    writeCategoriesFile(next);
+    await saveCategoriesAsync(next);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Write failed";
     return NextResponse.json({ error: msg }, { status: 500 });

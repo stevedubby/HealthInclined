@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import matter from "gray-matter";
+import { dbDeletePost, dbGetAllPosts, dbGetPostBySlug, dbUpsertPost, isDatabaseEnabled } from "@/lib/db-content";
 import { getReadContentRoots } from "@/lib/content-paths";
 
 export type VideoSpec = {
@@ -80,20 +81,94 @@ function loadAllPostsFromDisk(): Post[] {
 
 /** Live posts only (excludes drafts). Use for the public site, sitemap, and RSS. */
 export function getAllPosts(): Post[] {
-  return loadAllPostsFromDisk().filter((p) => p.published !== false);
+  throw new Error("Use getAllPostsAsync() instead.");
 }
 
 /** All posts including drafts — admin only. */
 export function getAllPostsAdmin(): Post[] {
+  throw new Error("Use getAllPostsAdminAsync() instead.");
+}
+
+export async function getAllPostsAsync(): Promise<Post[]> {
+  if (isDatabaseEnabled()) {
+    let posts = await dbGetAllPosts();
+    if (posts.length === 0) {
+      const filePosts = loadAllPostsFromDisk();
+      for (const post of filePosts) {
+        await dbUpsertPost(post);
+      }
+      posts = filePosts;
+    }
+    return posts.filter((p) => p.published !== false);
+  }
+  return loadAllPostsFromDisk().filter((p) => p.published !== false);
+}
+
+export async function getAllPostsAdminAsync(): Promise<Post[]> {
+  if (isDatabaseEnabled()) {
+    let posts = await dbGetAllPosts();
+    if (posts.length === 0) {
+      const filePosts = loadAllPostsFromDisk();
+      for (const post of filePosts) {
+        await dbUpsertPost(post);
+      }
+      posts = filePosts;
+    }
+    return posts;
+  }
   return loadAllPostsFromDisk();
 }
 
-export function getPostBySlug(slug: string): Post | null {
+export async function getPostBySlugAsync(slug: string): Promise<Post | null> {
+  if (isDatabaseEnabled()) {
+    const post = await dbGetPostBySlug(slug);
+    if (!post || post.published === false) return null;
+    return post;
+  }
   const post = loadPostFromDisk(slug);
   if (!post || post.published === false) return null;
   return post;
 }
 
-export function getPostsByCategory(categorySlug: string): Post[] {
-  return getAllPosts().filter((p) => p.category === categorySlug);
+export async function getPostBySlugAdminAsync(slug: string): Promise<Post | null> {
+  if (isDatabaseEnabled()) return dbGetPostBySlug(slug);
+  return loadPostFromDisk(slug);
+}
+
+export async function getPostsByCategoryAsync(categorySlug: string): Promise<Post[]> {
+  const posts = await getAllPostsAsync();
+  return posts.filter((p) => p.category === categorySlug);
+}
+
+export async function upsertPostAsync(post: Post): Promise<void> {
+  if (isDatabaseEnabled()) {
+    await dbUpsertPost(post);
+    return;
+  }
+  // file fallback for local mode
+  const matterPayload = {
+    title: post.title,
+    description: post.description,
+    category: post.category,
+    mainKeyword: post.mainKeyword,
+    keywords: post.keywords,
+    publishedAt: post.publishedAt,
+    updatedAt: post.updatedAt,
+    published: post.published,
+    seoTitle: post.seoTitle,
+    video: post.video,
+    related: post.related,
+  } satisfies PostFrontmatter;
+  const raw = matter.stringify(post.content.trim() + "\n", matterPayload as Record<string, unknown>);
+  const dir = path.join(process.cwd(), "content", "blog");
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, `${post.slug}.md`), raw, "utf8");
+}
+
+export async function deletePostAsync(slug: string): Promise<boolean> {
+  if (isDatabaseEnabled()) return dbDeletePost(slug);
+  const filePath = path.join(process.cwd(), "content", "blog", `${slug}.md`);
+  if (!fs.existsSync(filePath)) return false;
+  fs.unlinkSync(filePath);
+  return true;
 }

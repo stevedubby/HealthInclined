@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Container from "@/components/Container";
 import VideoEmbed from "@/components/VideoEmbed";
-import { getAllEmbeddedVideos } from "@/lib/videos";
-import { getCategoryBySlug } from "@/lib/categories";
+import { getAllEmbeddedVideosAsync } from "@/lib/videos";
+import { getCategoriesAsync } from "@/lib/categories";
 import { SITE } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -14,8 +14,10 @@ export const metadata: Metadata = {
   },
 };
 
-export default function VideosPage() {
-  const videos = getAllEmbeddedVideos();
+export default async function VideosPage() {
+  const videos = await getAllEmbeddedVideosAsync();
+  const categories = await getCategoriesAsync();
+  const categoryBySlug = new Map(categories.map((c) => [c.slug, c]));
 
   return (
     <Container>
@@ -40,9 +42,7 @@ export default function VideosPage() {
 
         <div className="mt-8 grid gap-6 sm:grid-cols-2">
           {videos.map((video) => {
-            const category = video.categorySlug
-              ? getCategoryBySlug(video.categorySlug)
-              : null;
+            const category = video.categorySlug ? categoryBySlug.get(video.categorySlug) ?? null : null;
 
             return (
               <section key={video.key} className="flex flex-col gap-3">

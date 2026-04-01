@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type { Category } from "@/lib/categories";
 
 const DEFAULT_BODY = `## Hook
@@ -37,6 +39,7 @@ const DEFAULT_BODY = `## Hook
 `;
 
 type Mode = "new" | "edit";
+type BodyViewMode = "write" | "preview" | "split";
 
 function effectiveMetaTitle(seoTitle: string, title: string): string {
   const s = seoTitle.trim();
@@ -73,6 +76,7 @@ export default function AdminArticleEditor({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [bodyView, setBodyView] = useState<BodyViewMode>("split");
   const bodyRef = useRef<HTMLTextAreaElement | null>(null);
 
   const metaTitle = useMemo(() => effectiveMetaTitle(seoTitle, title), [seoTitle, title]);
@@ -492,6 +496,13 @@ export default function AdminArticleEditor({
               </button>
               <button
                 type="button"
+                onClick={() => wrapBodySelection("*")}
+                className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+              >
+                Italic
+              </button>
+              <button
+                type="button"
                 onClick={() => wrapBodySelection("<u>", "</u>")}
                 className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
               >
@@ -522,15 +533,66 @@ export default function AdminArticleEditor({
               >
                 H2
               </button>
+              <button
+                type="button"
+                onClick={() => insertBodyAtCursor("\n- list item\n")}
+                className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+              >
+                List
+              </button>
+              <button
+                type="button"
+                onClick={() => insertBodyAtCursor("\n> quoted insight\n")}
+                className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+              >
+                Quote
+              </button>
             </div>
-            <textarea
-              ref={bodyRef}
-              value={body}
-              onChange={(ev) => setBody(ev.target.value)}
-              rows={22}
-              className={`${inputClass} mt-4 min-h-[320px] font-mono text-xs leading-relaxed`}
-              required
-            />
+            <div className="mt-4 inline-flex rounded-lg border border-zinc-300 bg-white p-1 dark:border-zinc-700 dark:bg-zinc-900">
+              {(["write", "preview", "split"] as BodyViewMode[]).map((modeOption) => (
+                <button
+                  key={modeOption}
+                  type="button"
+                  onClick={() => setBodyView(modeOption)}
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                    bodyView === modeOption
+                      ? "bg-emerald-600 text-white dark:bg-emerald-500 dark:text-zinc-950"
+                      : "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                  }`}
+                >
+                  {modeOption === "write"
+                    ? "Write"
+                    : modeOption === "preview"
+                      ? "Preview"
+                      : "Split"}
+                </button>
+              ))}
+            </div>
+            <div
+              className={`mt-3 grid gap-3 ${
+                bodyView === "split" ? "lg:grid-cols-2" : "grid-cols-1"
+              }`}
+            >
+              {bodyView !== "preview" ? (
+                <textarea
+                  ref={bodyRef}
+                  value={body}
+                  onChange={(ev) => setBody(ev.target.value)}
+                  rows={22}
+                  className={`${inputClass} min-h-[360px] font-mono text-xs leading-relaxed`}
+                  required
+                />
+              ) : null}
+              {bodyView !== "write" ? (
+                <div className="min-h-[360px] overflow-auto rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
+                  <div className="prose prose-sm max-w-none prose-headings:scroll-mt-24 dark:prose-invert">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {body || "Nothing to preview yet."}
+                    </ReactMarkdown>
+                  </div>
+                </div>
+              ) : null}
+            </div>
           </section>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">

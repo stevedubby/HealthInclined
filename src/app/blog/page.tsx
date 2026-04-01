@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Container from "@/components/Container";
 import PostCard from "@/components/PostCard";
-import { getAllPosts } from "@/lib/content/posts";
-import { getCategories } from "@/lib/categories";
+import { getAllPostsAsync } from "@/lib/content/posts";
+import { getCategoriesAsync } from "@/lib/categories";
 import { SITE } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -16,8 +16,8 @@ export const metadata: Metadata = {
 };
 
 export default async function BlogIndex() {
-  const categories = getCategories();
-  const posts = getAllPosts();
+  const categories = await getCategoriesAsync();
+  const posts = await getAllPostsAsync();
 
   return (
     <Container>

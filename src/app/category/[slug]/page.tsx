@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Container from "@/components/Container";
 import PostCard from "@/components/PostCard";
-import { getPostsByCategory } from "@/lib/content/posts";
-import { getCategoryBySlug } from "@/lib/categories";
+import { getPostsByCategoryAsync } from "@/lib/content/posts";
+import { getCategoryBySlugAsync } from "@/lib/categories";
 import { SITE } from "@/lib/site";
 import { notFound } from "next/navigation";
 
@@ -13,7 +13,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const category = getCategoryBySlug(slug);
+  const category = await getCategoryBySlugAsync(slug);
   if (!category) return {};
 
   const canonical = `${SITE.baseUrl}/category/${category.slug}`;
@@ -37,10 +37,10 @@ export default async function CategoryPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const category = getCategoryBySlug(slug);
+  const category = await getCategoryBySlugAsync(slug);
   if (!category) notFound();
 
-  const posts = getPostsByCategory(category.slug);
+  const posts = await getPostsByCategoryAsync(category.slug);
 
   return (
     <Container>

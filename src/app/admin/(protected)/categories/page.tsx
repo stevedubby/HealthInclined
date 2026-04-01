@@ -1,10 +1,10 @@
 import AdminCategoriesManager from "@/components/AdminCategoriesManager";
-import { getCategories } from "@/lib/categories";
-import { getAllPostsAdmin } from "@/lib/content/posts";
+import { getCategoriesAsync } from "@/lib/categories";
+import { getAllPostsAdminAsync } from "@/lib/content/posts";
 
-export default function AdminCategoriesPage() {
-  const categories = getCategories();
-  const posts = getAllPostsAdmin();
+export default async function AdminCategoriesPage() {
+  const categories = await getCategoriesAsync();
+  const posts = await getAllPostsAdminAsync();
 
   const postCounts: Record<string, { total: number; live: number }> = {};
   for (const c of categories) {

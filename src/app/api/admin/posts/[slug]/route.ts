@@ -2,14 +2,13 @@ import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/admin-api";
 import type { PostFrontmatter } from "@/lib/content/posts";
 import {
-  deletePostFile,
   isValidSlug,
   parseKeywords,
-  parseRelatedLines,
-  readPostRaw,
-  writePostMarkdown,
+  parseRelatedLines
 } from "@/lib/admin-posts";
-import { getCategories } from "@/lib/categories";
+import { deletePostAsync, getPostBySlugAdminAsync, upsertPostAsync } from "@/lib/content/posts";
+import { getCategoriesAsync } from "@/lib/categories";
+import { getPersistenceErrorMessage, hasPersistentContentStore } from "@/lib/content-paths";
 
 type Ctx = { params: Promise<{ slug: string }> };
 
@@ -24,15 +23,27 @@ export async function GET(_req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Invalid slug" }, { status: 400 });
   }
 
-  const data = readPostRaw(slug);
+  const data = await getPostBySlugAdminAsync(slug);
   if (!data) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   return NextResponse.json({
     slug,
-    frontmatter: data.frontmatter,
-    body: data.body,
+    frontmatter: {
+      title: data.title,
+      description: data.description,
+      category: data.category,
+      mainKeyword: data.mainKeyword,
+      keywords: data.keywords,
+      publishedAt: data.publishedAt,
+      updatedAt: data.updatedAt,
+      published: data.published,
+      seoTitle: data.seoTitle,
+      video: data.video,
+      related: data.related,
+    },
+    body: data.content,
   });
 }
 
@@ -55,6 +66,10 @@ type UpdateBody = {
 };
 
 export async function PUT(req: Request, ctx: Ctx) {
+  if (!hasPersistentContentStore()) {
+    return NextResponse.json({ error: getPersistenceErrorMessage() }, { status: 503 });
+  }
+
   const auth = await requireAdminSession();
   if (!auth.ok) {
     return NextResponse.json({ error: auth.message }, { status: auth.status });
@@ -65,7 +80,7 @@ export async function PUT(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Invalid slug" }, { status: 400 });
   }
 
-  const prior = readPostRaw(slug);
+  const prior = await getPostBySlugAdminAsync(slug);
   if (!prior) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -78,7 +93,7 @@ export async function PUT(req: Request, ctx: Ctx) {
   }
 
   const category = String(body.category ?? "").trim();
-  if (!getCategories().some((c) => c.slug === category)) {
+  if (!(await getCategoriesAsync()).some((c) => c.slug === category)) {
     return NextResponse.json({ error: "Invalid category" }, { status: 400 });
   }
 
@@ -100,7 +115,7 @@ export async function PUT(req: Request, ctx: Ctx) {
 
   const isLive =
     body.published === undefined
-      ? prior.frontmatter.published !== false
+      ? prior.published !== false
       : body.published === true;
 
   const frontmatter: PostFrontmatter = {
@@ -136,7 +151,7 @@ export async function PUT(req: Request, ctx: Ctx) {
   }
 
   try {
-    writePostMarkdown(slug, frontmatter, markdownBody);
+    await upsertPostAsync({ slug, content: markdownBody, ...frontmatter });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Write failed";
     return NextResponse.json({ error: msg }, { status: 500 });
@@ -147,6 +162,10 @@ export async function PUT(req: Request, ctx: Ctx) {
 
 /** Toggle visibility without re-sending the full article body. */
 export async function PATCH(req: Request, ctx: Ctx) {
+  if (!hasPersistentContentStore()) {
+    return NextResponse.json({ error: getPersistenceErrorMessage() }, { status: 503 });
+  }
+
   const auth = await requireAdminSession();
   if (!auth.ok) {
     return NextResponse.json({ error: auth.message }, { status: auth.status });
@@ -168,12 +187,24 @@ export async function PATCH(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "published must be true or false" }, { status: 400 });
   }
 
-  const prior = readPostRaw(slug);
+  const prior = await getPostBySlugAdminAsync(slug);
   if (!prior) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const nextFm: PostFrontmatter = { ...prior.frontmatter };
+  const nextFm: PostFrontmatter = {
+    title: prior.title,
+    description: prior.description,
+    category: prior.category,
+    mainKeyword: prior.mainKeyword,
+    keywords: prior.keywords,
+    publishedAt: prior.publishedAt,
+    updatedAt: prior.updatedAt,
+    published: prior.published,
+    seoTitle: prior.seoTitle,
+    video: prior.video,
+    related: prior.related,
+  };
   if (body.published === false) {
     nextFm.published = false;
   } else {
@@ -181,7 +212,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
   }
 
   try {
-    writePostMarkdown(slug, nextFm, prior.body);
+    await upsertPostAsync({ slug, content: prior.content, ...nextFm });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Write failed";
     return NextResponse.json({ error: msg }, { status: 500 });
@@ -191,6 +222,10 @@ export async function PATCH(req: Request, ctx: Ctx) {
 }
 
 export async function DELETE(_req: Request, ctx: Ctx) {
+  if (!hasPersistentContentStore()) {
+    return NextResponse.json({ error: getPersistenceErrorMessage() }, { status: 503 });
+  }
+
   const auth = await requireAdminSession();
   if (!auth.ok) {
     return NextResponse.json({ error: auth.message }, { status: auth.status });
@@ -201,7 +236,7 @@ export async function DELETE(_req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Invalid slug" }, { status: 400 });
   }
 
-  const ok = deletePostFile(slug);
+  const ok = await deletePostAsync(slug);
   if (!ok) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }

@@ -1,7 +1,7 @@
 import AdminArticleEditor from "@/components/AdminArticleEditor";
-import { getCategories } from "@/lib/categories";
+import { getCategoriesAsync } from "@/lib/categories";
 
-export default function AdminNewPostPage() {
-  const categories = getCategories();
+export default async function AdminNewPostPage() {
+  const categories = await getCategoriesAsync();
   return <AdminArticleEditor mode="new" categories={categories} />;
 }

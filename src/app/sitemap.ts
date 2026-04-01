@@ -1,10 +1,10 @@
 import type { MetadataRoute } from "next";
 import { SITE } from "@/lib/site";
-import { getCategories } from "@/lib/categories";
-import { getAllPosts } from "@/lib/content/posts";
+import { getCategoriesAsync } from "@/lib/categories";
+import { getAllPostsAsync } from "@/lib/content/posts";
 
-export default function sitemap(): MetadataRoute.Sitemap {
-  const posts = getAllPosts();
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const posts = await getAllPostsAsync();
   const urls: MetadataRoute.Sitemap = [
     { url: `${SITE.baseUrl}/`, lastModified: new Date() },
     { url: `${SITE.baseUrl}/blog`, lastModified: new Date() },
@@ -12,7 +12,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${SITE.baseUrl}/about`, lastModified: new Date() },
   ];
 
-  for (const c of getCategories()) {
+  for (const c of await getCategoriesAsync()) {
     urls.push({
       url: `${SITE.baseUrl}/category/${c.slug}`,
       lastModified: new Date(),

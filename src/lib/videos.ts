@@ -1,4 +1,4 @@
-import { getAllPosts, type VideoSpec } from "@/lib/content/posts";
+import { getAllPostsAsync, type VideoSpec } from "@/lib/content/posts";
 
 export type SiteVideo = {
   key: string; // stable unique key for React keys
@@ -31,8 +31,8 @@ function videoKey(platform: VideoSpec["platform"], id: string) {
   return `${platform}:${id}`;
 }
 
-export function getAllEmbeddedVideos(): SiteVideo[] {
-  const fromPosts = getAllPosts()
+export async function getAllEmbeddedVideosAsync(): Promise<SiteVideo[]> {
+  const fromPosts = (await getAllPostsAsync())
     .filter((p) => p.video?.id)
     .map((p) => ({
       key: videoKey(p.video!.platform, p.video!.id),

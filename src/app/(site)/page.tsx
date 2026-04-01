@@ -3,17 +3,17 @@ import Container from "@/components/Container";
 import PostCard from "@/components/PostCard";
 import CategoryTile from "@/components/CategoryTile";
 import VideoEmbed from "@/components/VideoEmbed";
-import { getAllPosts } from "@/lib/content/posts";
-import { getCategories } from "@/lib/categories";
+import { getAllPostsAsync } from "@/lib/content/posts";
+import { getCategoriesAsync } from "@/lib/categories";
 import { SITE } from "@/lib/site";
-import { getAllEmbeddedVideos } from "@/lib/videos";
+import { getAllEmbeddedVideosAsync } from "@/lib/videos";
 
 export default async function Home() {
-  const categories = getCategories();
-  const posts = getAllPosts();
+  const categories = await getCategoriesAsync();
+  const posts = await getAllPostsAsync();
   const highlightedCategory = categories.find((c) => c.highlight) ?? categories[0] ?? null;
   const featured = posts.slice(0, 6);
-  const videos = getAllEmbeddedVideos();
+  const videos = await getAllEmbeddedVideosAsync();
   const primaryVideo = videos[0];
   const secondaryVideo = videos[1];
 

@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/admin-api";
 import { isValidSlug } from "@/lib/admin-posts";
-import { getCategories, writeCategoriesFile, type Category } from "@/lib/categories";
-import { getAllPostsAdmin } from "@/lib/content/posts";
+import { getCategoriesAsync, saveCategoriesAsync, type Category } from "@/lib/categories";
+import { getAllPostsAdminAsync } from "@/lib/content/posts";
+import { getPersistenceErrorMessage, hasPersistentContentStore } from "@/lib/content-paths";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,10 @@ type UpdateBody = {
 };
 
 export async function PUT(req: Request, ctx: Ctx) {
+  if (!hasPersistentContentStore()) {
+    return NextResponse.json({ error: getPersistenceErrorMessage() }, { status: 503 });
+  }
+
   const auth = await requireAdminSession();
   if (!auth.ok) {
     return NextResponse.json({ error: auth.message }, { status: auth.status });
@@ -38,7 +43,7 @@ export async function PUT(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "name and shortDescription are required" }, { status: 400 });
   }
 
-  const list = getCategories();
+  const list = await getCategoriesAsync();
   const idx = list.findIndex((c) => c.slug === slug);
   if (idx === -1) {
     return NextResponse.json({ error: "Category not found" }, { status: 404 });
@@ -55,7 +60,7 @@ export async function PUT(req: Request, ctx: Ctx) {
   next[idx] = updated;
 
   try {
-    writeCategoriesFile(next);
+    await saveCategoriesAsync(next);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Write failed";
     return NextResponse.json({ error: msg }, { status: 500 });
@@ -65,6 +70,10 @@ export async function PUT(req: Request, ctx: Ctx) {
 }
 
 export async function DELETE(_req: Request, ctx: Ctx) {
+  if (!hasPersistentContentStore()) {
+    return NextResponse.json({ error: getPersistenceErrorMessage() }, { status: 503 });
+  }
+
   const auth = await requireAdminSession();
   if (!auth.ok) {
     return NextResponse.json({ error: auth.message }, { status: auth.status });
@@ -75,7 +84,7 @@ export async function DELETE(_req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Invalid slug" }, { status: 400 });
   }
 
-  const posts = getAllPostsAdmin();
+  const posts = await getAllPostsAdminAsync();
   if (posts.some((p) => p.category === slug)) {
     return NextResponse.json(
       { error: "Cannot delete: one or more articles use this category. Reassign them first." },
@@ -83,7 +92,7 @@ export async function DELETE(_req: Request, ctx: Ctx) {
     );
   }
 
-  const list = getCategories();
+  const list = await getCategoriesAsync();
   const next = list.filter((c) => c.slug !== slug);
   if (next.length === list.length) {
     return NextResponse.json({ error: "Category not found" }, { status: 404 });
@@ -94,7 +103,7 @@ export async function DELETE(_req: Request, ctx: Ctx) {
   }
 
   try {
-    writeCategoriesFile(next);
+    await saveCategoriesAsync(next);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Write failed";
     return NextResponse.json({ error: msg }, { status: 500 });

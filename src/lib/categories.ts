@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { dbGetCategories, dbUpsertCategories, isDatabaseEnabled } from "@/lib/db-content";
 import { getReadContentRoots, getWritableContentRoot } from "@/lib/content-paths";
 
 export type Category = {
@@ -84,21 +85,37 @@ function parseCategoriesFile(raw: string): Category[] | null {
 
 /** Categories for the public site and admin — read from `content/categories.json` with fallback. */
 export function getCategories(): Category[] {
-  try {
-    for (const filePath of getCategoriesReadPaths()) {
-      if (!fs.existsSync(filePath)) continue;
-      const raw = fs.readFileSync(filePath, "utf8");
-      const parsed = parseCategoriesFile(raw);
-      if (parsed) return parsed;
-    }
-    return DEFAULT_CATEGORIES;
-  } catch {
-    return DEFAULT_CATEGORIES;
-  }
+  throw new Error("Use getCategoriesAsync() instead.");
 }
 
-export function getCategoryBySlug(slug: string): Category | null {
-  return getCategories().find((c) => c.slug === slug) ?? null;
+export async function getCategoriesAsync(): Promise<Category[]> {
+  const readFromFiles = (): Category[] => {
+    try {
+      for (const filePath of getCategoriesReadPaths()) {
+        if (!fs.existsSync(filePath)) continue;
+        const raw = fs.readFileSync(filePath, "utf8");
+        const parsed = parseCategoriesFile(raw);
+        if (parsed) return parsed;
+      }
+      return DEFAULT_CATEGORIES;
+    } catch {
+      return DEFAULT_CATEGORIES;
+    }
+  };
+
+  if (isDatabaseEnabled()) {
+    const dbCategories = await dbGetCategories();
+    if (dbCategories.length > 0) return dbCategories;
+    const seeded = readFromFiles();
+    await dbUpsertCategories(seeded);
+    return seeded;
+  }
+  return readFromFiles();
+}
+
+export async function getCategoryBySlugAsync(slug: string): Promise<Category | null> {
+  const categories = await getCategoriesAsync();
+  return categories.find((c) => c.slug === slug) ?? null;
 }
 
 export function getCategoriesFilePath(): string {
@@ -110,4 +127,12 @@ export function writeCategoriesFile(categories: Category[]): void {
   const dir = path.dirname(target);
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(target, `${JSON.stringify(categories, null, 2)}\n`, "utf8");
+}
+
+export async function saveCategoriesAsync(categories: Category[]): Promise<void> {
+  if (isDatabaseEnabled()) {
+    await dbUpsertCategories(categories);
+    return;
+  }
+  writeCategoriesFile(categories);
 }

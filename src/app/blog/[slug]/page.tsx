@@ -4,8 +4,8 @@ import { notFound } from "next/navigation";
 import Container from "@/components/Container";
 import MarkdownContent from "@/components/MarkdownContent";
 import VideoEmbed from "@/components/VideoEmbed";
-import { getPostBySlug } from "@/lib/content/posts";
-import { getCategoryBySlug } from "@/lib/categories";
+import { getPostBySlugAsync } from "@/lib/content/posts";
+import { getCategoryBySlugAsync } from "@/lib/categories";
 import { SITE } from "@/lib/site";
 
 export async function generateMetadata({
@@ -14,7 +14,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const post = getPostBySlug(slug);
+  const post = await getPostBySlugAsync(slug);
   if (!post) return {};
 
   const canonical = `${SITE.baseUrl}/blog/${post.slug}`;
@@ -46,10 +46,10 @@ export default async function BlogPostPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const post = getPostBySlug(slug);
+  const post = await getPostBySlugAsync(slug);
   if (!post) notFound();
 
-  const category = getCategoryBySlug(post.category);
+  const category = await getCategoryBySlugAsync(post.category);
 
   const published = new Date(post.publishedAt).toLocaleDateString("en-US", {
     year: "numeric",

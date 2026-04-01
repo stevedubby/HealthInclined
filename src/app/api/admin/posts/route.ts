@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/admin-api";
 import type { PostFrontmatter } from "@/lib/content/posts";
-import { getAllPostsAdmin } from "@/lib/content/posts";
+import { getAllPostsAdminAsync, upsertPostAsync } from "@/lib/content/posts";
+import { getPersistenceErrorMessage, hasPersistentContentStore } from "@/lib/content-paths";
 import {
   isValidSlug,
   parseKeywords,
-  parseRelatedLines,
-  writePostMarkdown,
+  parseRelatedLines
 } from "@/lib/admin-posts";
-import { getCategories } from "@/lib/categories";
+import { getCategoriesAsync } from "@/lib/categories";
 
 export async function GET() {
   const auth = await requireAdminSession();
@@ -16,7 +16,7 @@ export async function GET() {
     return NextResponse.json({ error: auth.message }, { status: auth.status });
   }
 
-  const posts = getAllPostsAdmin().map((p) => ({
+  const posts = (await getAllPostsAdminAsync()).map((p) => ({
     slug: p.slug,
     title: p.title,
     category: p.category,
@@ -48,6 +48,10 @@ type CreateBody = {
 };
 
 export async function POST(req: Request) {
+  if (!hasPersistentContentStore()) {
+    return NextResponse.json({ error: getPersistenceErrorMessage() }, { status: 503 });
+  }
+
   const auth = await requireAdminSession();
   if (!auth.ok) {
     return NextResponse.json({ error: auth.message }, { status: auth.status });
@@ -71,7 +75,7 @@ export async function POST(req: Request) {
   }
 
   const category = String(body.category ?? "").trim();
-  if (!getCategories().some((c) => c.slug === category)) {
+  if (!(await getCategoriesAsync()).some((c) => c.slug === category)) {
     return NextResponse.json({ error: "Invalid category" }, { status: 400 });
   }
 
@@ -124,7 +128,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    writePostMarkdown(slug, frontmatter, markdownBody);
+    await upsertPostAsync({ slug, content: markdownBody, ...frontmatter });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Write failed";
     return NextResponse.json({ error: msg }, { status: 500 });
