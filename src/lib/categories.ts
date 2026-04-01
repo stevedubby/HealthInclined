@@ -104,11 +104,16 @@ export async function getCategoriesAsync(): Promise<Category[]> {
   };
 
   if (isDatabaseEnabled()) {
-    const dbCategories = await dbGetCategories();
-    if (dbCategories.length > 0) return dbCategories;
-    const seeded = readFromFiles();
-    await dbUpsertCategories(seeded);
-    return seeded;
+    try {
+      const dbCategories = await dbGetCategories();
+      if (dbCategories.length > 0) return dbCategories;
+      const seeded = readFromFiles();
+      await dbUpsertCategories(seeded);
+      return seeded;
+    } catch {
+      // Do not break static generation if DB is temporarily unreachable.
+      return readFromFiles();
+    }
   }
   return readFromFiles();
 }

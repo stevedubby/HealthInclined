@@ -91,39 +91,54 @@ export function getAllPostsAdmin(): Post[] {
 
 export async function getAllPostsAsync(): Promise<Post[]> {
   if (isDatabaseEnabled()) {
-    let posts = await dbGetAllPosts();
-    if (posts.length === 0) {
-      const filePosts = loadAllPostsFromDisk();
-      for (const post of filePosts) {
-        await dbUpsertPost(post);
+    try {
+      let posts = await dbGetAllPosts();
+      if (posts.length === 0) {
+        const filePosts = loadAllPostsFromDisk();
+        for (const post of filePosts) {
+          await dbUpsertPost(post);
+        }
+        posts = filePosts;
       }
-      posts = filePosts;
+      return posts.filter((p) => p.published !== false);
+    } catch {
+      // Keep public pages buildable even if DB is momentarily unreachable.
+      return loadAllPostsFromDisk().filter((p) => p.published !== false);
     }
-    return posts.filter((p) => p.published !== false);
   }
   return loadAllPostsFromDisk().filter((p) => p.published !== false);
 }
 
 export async function getAllPostsAdminAsync(): Promise<Post[]> {
   if (isDatabaseEnabled()) {
-    let posts = await dbGetAllPosts();
-    if (posts.length === 0) {
-      const filePosts = loadAllPostsFromDisk();
-      for (const post of filePosts) {
-        await dbUpsertPost(post);
+    try {
+      let posts = await dbGetAllPosts();
+      if (posts.length === 0) {
+        const filePosts = loadAllPostsFromDisk();
+        for (const post of filePosts) {
+          await dbUpsertPost(post);
+        }
+        posts = filePosts;
       }
-      posts = filePosts;
+      return posts;
+    } catch {
+      return loadAllPostsFromDisk();
     }
-    return posts;
   }
   return loadAllPostsFromDisk();
 }
 
 export async function getPostBySlugAsync(slug: string): Promise<Post | null> {
   if (isDatabaseEnabled()) {
-    const post = await dbGetPostBySlug(slug);
-    if (!post || post.published === false) return null;
-    return post;
+    try {
+      const post = await dbGetPostBySlug(slug);
+      if (!post || post.published === false) return null;
+      return post;
+    } catch {
+      const post = loadPostFromDisk(slug);
+      if (!post || post.published === false) return null;
+      return post;
+    }
   }
   const post = loadPostFromDisk(slug);
   if (!post || post.published === false) return null;
@@ -131,7 +146,13 @@ export async function getPostBySlugAsync(slug: string): Promise<Post | null> {
 }
 
 export async function getPostBySlugAdminAsync(slug: string): Promise<Post | null> {
-  if (isDatabaseEnabled()) return dbGetPostBySlug(slug);
+  if (isDatabaseEnabled()) {
+    try {
+      return await dbGetPostBySlug(slug);
+    } catch {
+      return loadPostFromDisk(slug);
+    }
+  }
   return loadPostFromDisk(slug);
 }
 
