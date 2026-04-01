@@ -11,6 +11,7 @@ import { deletePostAsync, getPostBySlugAdminAsync, upsertPostAsync } from "@/lib
 import { getCategoriesAsync } from "@/lib/categories";
 import { getPersistenceErrorMessage, hasPersistentContentStore } from "@/lib/content-paths";
 import { isValidArticleBody } from "@/lib/tiptap-article";
+import { parseYoutubeVideoId } from "@/lib/youtube-id";
 
 type Ctx = { params: Promise<{ slug: string }> };
 
@@ -147,13 +148,31 @@ export async function PUT(req: Request, ctx: Ctx) {
   }
 
   const vp = body.videoPlatform;
-  const vid = String(body.videoId ?? "").trim();
-  if (vp && vid) {
-    frontmatter.video = {
-      platform: vp,
-      id: vid,
-      title: body.videoTitle?.trim() || undefined,
-    };
+  const vidRaw = String(body.videoId ?? "").trim();
+  if (vp && vidRaw) {
+    if (vp === "youtube") {
+      const vid = parseYoutubeVideoId(vidRaw);
+      if (!vid) {
+        return NextResponse.json(
+          {
+            error:
+              "Invalid YouTube URL or ID. Paste a Shorts link, watch URL (with v=), youtu.be link, or the 11-character video ID.",
+          },
+          { status: 400 },
+        );
+      }
+      frontmatter.video = {
+        platform: vp,
+        id: vid,
+        title: body.videoTitle?.trim() || undefined,
+      };
+    } else {
+      frontmatter.video = {
+        platform: vp,
+        id: vidRaw,
+        title: body.videoTitle?.trim() || undefined,
+      };
+    }
   }
 
   try {

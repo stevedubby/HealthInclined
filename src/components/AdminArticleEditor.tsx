@@ -10,6 +10,7 @@ import {
   isValidArticleBody,
   markdownToTiptapJson,
 } from "@/lib/tiptap-article";
+import { parseYoutubeVideoId } from "@/lib/youtube-id";
 
 function effectiveMetaTitle(seoTitle: string, title: string): string {
   const s = seoTitle.trim();
@@ -110,7 +111,10 @@ export default function AdminArticleEditor({
         );
         if (fm.video) {
           setVideoPlatform(fm.video.platform as "youtube" | "tiktok");
-          setVideoId(fm.video.id);
+          const vid = fm.video.id;
+          setVideoId(
+            fm.video.platform === "youtube" ? parseYoutubeVideoId(vid) ?? vid : vid,
+          );
           setVideoTitle(fm.video.title ?? "");
         }
 
@@ -146,6 +150,20 @@ export default function AdminArticleEditor({
       setError("Add some content to the article body before saving.");
       return;
     }
+
+    const vidTrim = videoId.trim();
+    let videoIdOut = vidTrim;
+    if (videoPlatform === "youtube" && vidTrim) {
+      const parsed = parseYoutubeVideoId(vidTrim);
+      if (!parsed) {
+        setError(
+          "Could not read that YouTube link. Paste a Shorts URL (youtube.com/shorts/…), a watch link, youtu.be/…, or the 11-character video ID.",
+        );
+        return;
+      }
+      videoIdOut = parsed;
+    }
+
     setSaving(true);
     const wasLive = published;
     try {
@@ -161,7 +179,7 @@ export default function AdminArticleEditor({
         body,
         relatedText,
         videoPlatform,
-        videoId,
+        videoId: videoIdOut,
         videoTitle,
         seoTitle: seoTitle.trim(),
       };
@@ -188,6 +206,9 @@ export default function AdminArticleEditor({
         setError(data.error ?? "Save failed");
         setSaving(false);
         return;
+      }
+      if (videoPlatform === "youtube" && videoIdOut) {
+        setVideoId(videoIdOut);
       }
       if (nextPublished !== "keep") {
         setPublished(nextPublished);
@@ -391,6 +412,11 @@ export default function AdminArticleEditor({
 
           <section className={`rounded-2xl border ${borderB} bg-white/70 p-5 dark:bg-zinc-900/40 sm:p-6`}>
             <h2 className={sectionTitle}>Video (optional)</h2>
+            <p className="mt-1 text-xs text-zinc-500">
+              For YouTube, paste a <strong className="font-medium text-zinc-600 dark:text-zinc-400">Shorts link</strong>,{" "}
+              <strong className="font-medium text-zinc-600 dark:text-zinc-400">watch URL</strong>, or the 11-character ID
+              — we normalize it automatically.
+            </p>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <label className={labelClass}>
                 Platform
@@ -405,12 +431,13 @@ export default function AdminArticleEditor({
                 </select>
               </label>
               <label className={labelClass}>
-                Video ID
+                Video ID or full URL{" "}
+                <span className="font-normal normal-case text-zinc-400 dark:text-zinc-600">(YouTube)</span>
                 <input
                   value={videoId}
                   onChange={(ev) => setVideoId(ev.target.value)}
                   className={`${inputClass} font-mono text-xs`}
-                  placeholder="Embed ID"
+                  placeholder="https://www.youtube.com/shorts/… or 11-character ID"
                 />
               </label>
               <label className={labelClass}>

@@ -1,4 +1,5 @@
 import type { VideoSpec } from "@/lib/content/posts";
+import { parseYoutubeVideoId } from "@/lib/youtube-id";
 
 export default function VideoEmbed({
   platform,
@@ -12,8 +13,20 @@ export default function VideoEmbed({
   if (!id) return null;
 
   if (platform === "youtube") {
+    const normalized = parseYoutubeVideoId(id);
+    if (!normalized) {
+      return (
+        <div className="w-full rounded-2xl border border-amber-200 bg-amber-50 px-4 py-6 text-center text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-950/30 dark:text-amber-100">
+          <p className="font-medium">Video could not be embedded</p>
+          <p className="mt-1 text-amber-800/90 dark:text-amber-200/90">
+            Edit this post in admin and set the video to a Shorts link, watch URL, or the 11-character YouTube ID — not a
+            pasted page URL in the ID field only.
+          </p>
+        </div>
+      );
+    }
     const src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(
-      id,
+      normalized,
     )}?rel=0&modestbranding=1`;
 
     return (
