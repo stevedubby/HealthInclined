@@ -9,7 +9,12 @@ function getPool(): Pool | null {
   const url = process.env.DATABASE_URL?.trim();
   if (!url) return null;
   if (!pool) {
-    pool = new Pool({ connectionString: url });
+    pool = new Pool({
+      connectionString: url,
+      // Supabase pooler on serverless can present a chain that fails strict verification.
+      // Allow TLS while skipping CA verification for this managed connection.
+      ssl: { rejectUnauthorized: false },
+    });
   }
   return pool;
 }
