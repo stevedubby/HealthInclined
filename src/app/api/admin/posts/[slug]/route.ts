@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { requireAdminSession } from "@/lib/admin-api";
 import type { PostFrontmatter } from "@/lib/content/posts";
 import {
@@ -84,6 +85,7 @@ export async function PUT(req: Request, ctx: Ctx) {
   if (!prior) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+  const priorCategory = prior.category;
 
   let body: UpdateBody;
   try {
@@ -152,6 +154,17 @@ export async function PUT(req: Request, ctx: Ctx) {
 
   try {
     await upsertPostAsync({ slug, content: markdownBody, ...frontmatter });
+    revalidatePath("/", "layout");
+    revalidatePath("/");
+    revalidatePath("/blog");
+    revalidatePath("/videos");
+    revalidatePath(`/blog/${slug}`);
+    revalidatePath(`/category/${frontmatter.category}`);
+    if (frontmatter.category !== priorCategory) {
+      revalidatePath(`/category/${priorCategory}`);
+    }
+    revalidatePath("/admin");
+    revalidatePath("/sitemap.xml");
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Write failed";
     return NextResponse.json({ error: msg }, { status: 500 });
@@ -213,6 +226,14 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
   try {
     await upsertPostAsync({ slug, content: prior.content, ...nextFm });
+    revalidatePath("/", "layout");
+    revalidatePath("/");
+    revalidatePath("/blog");
+    revalidatePath("/videos");
+    revalidatePath(`/blog/${slug}`);
+    revalidatePath(`/category/${prior.category}`);
+    revalidatePath("/admin");
+    revalidatePath("/sitemap.xml");
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Write failed";
     return NextResponse.json({ error: msg }, { status: 500 });
@@ -240,6 +261,14 @@ export async function DELETE(_req: Request, ctx: Ctx) {
   if (!ok) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+
+  revalidatePath("/", "layout");
+  revalidatePath("/");
+  revalidatePath("/blog");
+  revalidatePath("/videos");
+  revalidatePath(`/blog/${slug}`);
+  revalidatePath("/admin");
+  revalidatePath("/sitemap.xml");
 
   return NextResponse.json({ ok: true });
 }

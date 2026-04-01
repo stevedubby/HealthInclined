@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { requireAdminSession } from "@/lib/admin-api";
 import type { PostFrontmatter } from "@/lib/content/posts";
 import { getAllPostsAdminAsync, upsertPostAsync } from "@/lib/content/posts";
@@ -129,6 +130,14 @@ export async function POST(req: Request) {
 
   try {
     await upsertPostAsync({ slug, content: markdownBody, ...frontmatter });
+    revalidatePath("/", "layout");
+    revalidatePath("/");
+    revalidatePath("/blog");
+    revalidatePath("/videos");
+    revalidatePath(`/blog/${slug}`);
+    revalidatePath(`/category/${frontmatter.category}`);
+    revalidatePath("/admin");
+    revalidatePath("/sitemap.xml");
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Write failed";
     return NextResponse.json({ error: msg }, { status: 500 });

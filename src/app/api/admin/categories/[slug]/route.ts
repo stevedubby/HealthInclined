@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { requireAdminSession } from "@/lib/admin-api";
 import { isValidSlug } from "@/lib/admin-posts";
 import { getCategoriesAsync, saveCategoriesAsync, type Category } from "@/lib/categories";
@@ -61,6 +62,12 @@ export async function PUT(req: Request, ctx: Ctx) {
 
   try {
     await saveCategoriesAsync(next);
+    revalidatePath("/", "layout");
+    revalidatePath("/");
+    revalidatePath("/blog");
+    revalidatePath("/admin/categories");
+    revalidatePath("/sitemap.xml");
+    revalidatePath(`/category/${slug}`);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Write failed";
     return NextResponse.json({ error: msg }, { status: 500 });
@@ -104,6 +111,12 @@ export async function DELETE(_req: Request, ctx: Ctx) {
 
   try {
     await saveCategoriesAsync(next);
+    revalidatePath("/", "layout");
+    revalidatePath("/");
+    revalidatePath("/blog");
+    revalidatePath("/admin/categories");
+    revalidatePath("/sitemap.xml");
+    revalidatePath(`/category/${slug}`);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Write failed";
     return NextResponse.json({ error: msg }, { status: 500 });
