@@ -1,4 +1,5 @@
 import Link from "next/link";
+import AdminDeleteArticleButton from "@/components/AdminDeleteArticleButton";
 import AdminThemeToggle from "@/components/AdminThemeToggle";
 import AdminUnpublishButton from "@/components/AdminUnpublishButton";
 import { getCategoriesAsync } from "@/lib/categories";
@@ -137,6 +138,7 @@ export default async function AdminDashboardPage() {
                         >
                           Edit
                         </Link>
+                        <AdminDeleteArticleButton slug={p.slug} title={p.title} />
                       </div>
                     </td>
                   </tr>

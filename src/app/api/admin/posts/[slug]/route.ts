@@ -297,6 +297,7 @@ export async function DELETE(_req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Invalid slug" }, { status: 400 });
   }
 
+  const prior = await getPostBySlugAdminAsync(slug);
   const ok = await deletePostAsync(slug);
   if (!ok) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -307,6 +308,9 @@ export async function DELETE(_req: Request, ctx: Ctx) {
   revalidatePath("/blog");
   revalidatePath("/videos");
   revalidatePath(`/blog/${slug}`);
+  if (prior?.category) {
+    revalidatePath(`/category/${prior.category}`);
+  }
   revalidatePath("/admin");
   revalidatePath("/sitemap.xml");
 
