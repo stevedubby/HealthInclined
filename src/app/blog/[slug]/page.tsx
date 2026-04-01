@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Container from "@/components/Container";
-import MarkdownContent from "@/components/MarkdownContent";
+import ArticleContent from "@/components/ArticleContent";
 import VideoEmbed from "@/components/VideoEmbed";
 import { getPostBySlugAsync } from "@/lib/content/posts";
 import { getCategoryBySlugAsync } from "@/lib/categories";
@@ -124,7 +124,7 @@ export default async function BlogPostPage({
           ) : null}
 
           <div className="mt-7 max-w-none">
-            <MarkdownContent markdown={post.content} />
+            <ArticleContent content={post.content} />
           </div>
 
           <section className="mt-12 border-t border-emerald-100 pt-8 dark:border-emerald-900">

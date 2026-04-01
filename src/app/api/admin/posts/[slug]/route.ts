@@ -10,6 +10,7 @@ import {
 import { deletePostAsync, getPostBySlugAdminAsync, upsertPostAsync } from "@/lib/content/posts";
 import { getCategoriesAsync } from "@/lib/categories";
 import { getPersistenceErrorMessage, hasPersistentContentStore } from "@/lib/content-paths";
+import { isValidArticleBody } from "@/lib/tiptap-article";
 
 type Ctx = { params: Promise<{ slug: string }> };
 
@@ -103,11 +104,14 @@ export async function PUT(req: Request, ctx: Ctx) {
   const description = String(body.description ?? "").trim();
   const mainKeyword = String(body.mainKeyword ?? "").trim();
   const publishedAt = String(body.publishedAt ?? "").trim();
-  const markdownBody = String(body.body ?? "");
+  const articleBody = String(body.body ?? "");
 
-  if (!title || !description || !mainKeyword || !publishedAt || !markdownBody.trim()) {
+  if (!title || !description || !mainKeyword || !publishedAt || !isValidArticleBody(articleBody)) {
     return NextResponse.json(
-      { error: "title, description, mainKeyword, publishedAt, and body are required" },
+      {
+        error:
+          "title, description, mainKeyword, publishedAt, and a non-empty article body (visual editor JSON) are required",
+      },
       { status: 400 },
     );
   }
@@ -153,7 +157,7 @@ export async function PUT(req: Request, ctx: Ctx) {
   }
 
   try {
-    await upsertPostAsync({ slug, content: markdownBody, ...frontmatter });
+    await upsertPostAsync({ slug, content: articleBody, ...frontmatter });
     revalidatePath("/", "layout");
     revalidatePath("/");
     revalidatePath("/blog");

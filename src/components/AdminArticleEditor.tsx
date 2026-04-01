@@ -1,50 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import type { Category } from "@/lib/categories";
-
-const DEFAULT_BODY = `## Hook
-
-
-
-## Simple Explanation
-
-
-
-## Common Causes
-- 
-
-
-
-## When It's Normal vs When to Pay Attention
-### Normal (usually)
-
-
-
-### Pay attention
-
-
-
-## What You Can Do
-- 
-
-
-
-## Quick Summary
-
-
-`;
-
-type Mode = "new" | "edit";
-type BodyViewMode = "write" | "preview" | "split";
+import TiptapArticleBodyEditor from "@/components/TiptapArticleBodyEditor";
+import {
+  EMPTY_TIPTAP_DOC_JSON,
+  isTiptapJsonContent,
+  isValidArticleBody,
+  markdownToTiptapJson,
+} from "@/lib/tiptap-article";
 
 function effectiveMetaTitle(seoTitle: string, title: string): string {
   const s = seoTitle.trim();
   return s || title.trim();
 }
+
+type Mode = "new" | "edit";
 
 export default function AdminArticleEditor({
   mode,
@@ -70,14 +42,13 @@ export default function AdminArticleEditor({
   const [videoPlatform, setVideoPlatform] = useState<"" | "youtube" | "tiktok">("");
   const [videoId, setVideoId] = useState("");
   const [videoTitle, setVideoTitle] = useState("");
-  const [body, setBody] = useState(mode === "new" ? DEFAULT_BODY : "");
+  const [body, setBody] = useState(EMPTY_TIPTAP_DOC_JSON);
+  const [editorMountKey, setEditorMountKey] = useState(0);
   const [published, setPublished] = useState(mode === "new" ? false : true);
   const [loading, setLoading] = useState(mode === "edit");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [bodyView, setBodyView] = useState<BodyViewMode>("split");
-  const bodyRef = useRef<HTMLTextAreaElement | null>(null);
 
   const metaTitle = useMemo(() => effectiveMetaTitle(seoTitle, title), [seoTitle, title]);
   const metaTitleLen = metaTitle.length;
@@ -142,7 +113,20 @@ export default function AdminArticleEditor({
           setVideoId(fm.video.id);
           setVideoTitle(fm.video.title ?? "");
         }
-        setBody(data.body ?? "");
+
+        const raw = data.body ?? "";
+        if (isTiptapJsonContent(raw)) {
+          setBody(raw);
+        } else if (raw.trim()) {
+          try {
+            setBody(markdownToTiptapJson(raw));
+          } catch {
+            setBody(EMPTY_TIPTAP_DOC_JSON);
+          }
+        } else {
+          setBody(EMPTY_TIPTAP_DOC_JSON);
+        }
+        setEditorMountKey((k) => k + 1);
       } catch {
         if (!cancelled) setError("Network error");
       } finally {
@@ -152,13 +136,16 @@ export default function AdminArticleEditor({
     return () => {
       cancelled = true;
     };
-    // Intentionally load once per slug; category list is applied on mount from server props.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- categories/defaultCat would refetch and wipe edits
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once per slug
   }, [mode, editSlug]);
 
   async function save(nextPublished: boolean | "keep") {
     setError(null);
     setSuccess(null);
+    if (!isValidArticleBody(body)) {
+      setError("Add some content to the article body before saving.");
+      return;
+    }
     setSaving(true);
     const wasLive = published;
     try {
@@ -223,35 +210,6 @@ export default function AdminArticleEditor({
     }
   }
 
-  function wrapBodySelection(prefix: string, suffix: string = prefix) {
-    const el = bodyRef.current;
-    if (!el) return;
-    const start = el.selectionStart ?? 0;
-    const end = el.selectionEnd ?? 0;
-    const selected = body.slice(start, end);
-    const replacement = `${prefix}${selected || "text"}${suffix}`;
-    const next = `${body.slice(0, start)}${replacement}${body.slice(end)}`;
-    setBody(next);
-    requestAnimationFrame(() => {
-      el.focus();
-      const cursor = start + replacement.length;
-      el.setSelectionRange(cursor, cursor);
-    });
-  }
-
-  function insertBodyAtCursor(snippet: string) {
-    const el = bodyRef.current;
-    if (!el) return;
-    const start = el.selectionStart ?? body.length;
-    const next = `${body.slice(0, start)}${snippet}${body.slice(start)}`;
-    setBody(next);
-    requestAnimationFrame(() => {
-      el.focus();
-      const cursor = start + snippet.length;
-      el.setSelectionRange(cursor, cursor);
-    });
-  }
-
   if (loading) {
     return <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading…</p>;
   }
@@ -274,7 +232,7 @@ export default function AdminArticleEditor({
           </p>
           <h1 className={pageTitle}>{mode === "new" ? "New article" : "Edit article"}</h1>
           <p className={`mt-2 max-w-xl text-sm ${muted}`}>
-            Write in Markdown, tune SEO for Google, choose a category, then publish or keep a private draft.
+            Write visually (like Medium or Notion), tune SEO, choose a category, then publish or keep a private draft.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -485,113 +443,15 @@ export default function AdminArticleEditor({
 
           <section className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-5 dark:border-emerald-500/20 dark:bg-zinc-900/60 sm:p-6">
             <h2 className="text-sm font-semibold text-emerald-900 dark:text-emerald-200/90">Article body</h2>
-            <p className="mt-1 text-xs text-zinc-500">Markdown — headings, lists, links supported.</p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => wrapBodySelection("**")}
-                className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
-              >
-                Bold
-              </button>
-              <button
-                type="button"
-                onClick={() => wrapBodySelection("*")}
-                className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
-              >
-                Italic
-              </button>
-              <button
-                type="button"
-                onClick={() => wrapBodySelection("<u>", "</u>")}
-                className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
-              >
-                Underline
-              </button>
-              <button
-                type="button"
-                onClick={() => wrapBodySelection("[", "](https://)")}
-                className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
-              >
-                Link
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  insertBodyAtCursor(
-                    "\n![Describe image](https://example.com/image.jpg)\n",
-                  )
-                }
-                className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
-              >
-                Image
-              </button>
-              <button
-                type="button"
-                onClick={() => insertBodyAtCursor("\n## Section heading\n")}
-                className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
-              >
-                H2
-              </button>
-              <button
-                type="button"
-                onClick={() => insertBodyAtCursor("\n- list item\n")}
-                className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
-              >
-                List
-              </button>
-              <button
-                type="button"
-                onClick={() => insertBodyAtCursor("\n> quoted insight\n")}
-                className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
-              >
-                Quote
-              </button>
-            </div>
-            <div className="mt-4 inline-flex rounded-lg border border-zinc-300 bg-white p-1 dark:border-zinc-700 dark:bg-zinc-900">
-              {(["write", "preview", "split"] as BodyViewMode[]).map((modeOption) => (
-                <button
-                  key={modeOption}
-                  type="button"
-                  onClick={() => setBodyView(modeOption)}
-                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
-                    bodyView === modeOption
-                      ? "bg-emerald-600 text-white dark:bg-emerald-500 dark:text-zinc-950"
-                      : "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
-                  }`}
-                >
-                  {modeOption === "write"
-                    ? "Write"
-                    : modeOption === "preview"
-                      ? "Preview"
-                      : "Split"}
-                </button>
-              ))}
-            </div>
-            <div
-              className={`mt-3 grid gap-3 ${
-                bodyView === "split" ? "lg:grid-cols-2" : "grid-cols-1"
-              }`}
-            >
-              {bodyView !== "preview" ? (
-                <textarea
-                  ref={bodyRef}
-                  value={body}
-                  onChange={(ev) => setBody(ev.target.value)}
-                  rows={22}
-                  className={`${inputClass} min-h-[360px] font-mono text-xs leading-relaxed`}
-                  required
-                />
-              ) : null}
-              {bodyView !== "write" ? (
-                <div className="min-h-[360px] overflow-auto rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
-                  <div className="prose prose-sm max-w-none prose-headings:scroll-mt-24 dark:prose-invert">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {body || "Nothing to preview yet."}
-                    </ReactMarkdown>
-                  </div>
-                </div>
-              ) : null}
+            <p className="mt-1 text-xs text-zinc-500">
+              Visual editor — type, paste links, and add images. No markdown syntax.
+            </p>
+            <div className="mt-4">
+              <TiptapArticleBodyEditor
+                key={editorMountKey}
+                initialDocJson={body}
+                onChange={setBody}
+              />
             </div>
           </section>
 

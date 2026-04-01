@@ -10,6 +10,7 @@ import {
   parseRelatedLines
 } from "@/lib/admin-posts";
 import { getCategoriesAsync } from "@/lib/categories";
+import { isValidArticleBody } from "@/lib/tiptap-article";
 
 export async function GET() {
   const auth = await requireAdminSession();
@@ -84,11 +85,14 @@ export async function POST(req: Request) {
   const description = String(body.description ?? "").trim();
   const mainKeyword = String(body.mainKeyword ?? "").trim();
   const publishedAt = String(body.publishedAt ?? "").trim();
-  const markdownBody = String(body.body ?? "");
+  const articleBody = String(body.body ?? "");
 
-  if (!title || !description || !mainKeyword || !publishedAt || !markdownBody.trim()) {
+  if (!title || !description || !mainKeyword || !publishedAt || !isValidArticleBody(articleBody)) {
     return NextResponse.json(
-      { error: "title, description, mainKeyword, publishedAt, and body are required" },
+      {
+        error:
+          "title, description, mainKeyword, publishedAt, and a non-empty article body (visual editor JSON) are required",
+      },
       { status: 400 },
     );
   }
@@ -129,7 +133,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    await upsertPostAsync({ slug, content: markdownBody, ...frontmatter });
+    await upsertPostAsync({ slug, content: articleBody, ...frontmatter });
     revalidatePath("/", "layout");
     revalidatePath("/");
     revalidatePath("/blog");
