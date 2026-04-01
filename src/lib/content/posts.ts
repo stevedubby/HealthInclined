@@ -34,6 +34,10 @@ export type PostFrontmatter = {
 export type Post = PostFrontmatter & {
   slug: string;
   content: string;
+  /** Page views (database-backed; omit or 0 when file-only / new draft). */
+  views?: number;
+  /** Like count (database-backed; omit or 0 when file-only / new draft). */
+  likes?: number;
 };
 
 function readPostFile(filePath: string): { frontmatter: PostFrontmatter; content: string } {
@@ -62,7 +66,7 @@ function loadPostFromDisk(slug: string): Post | null {
     const filePath = path.join(root, "blog", `${slug}.md`);
     if (!fs.existsSync(filePath)) continue;
     const { frontmatter, content } = readPostFile(filePath);
-    return { slug, content, ...frontmatter };
+    return { slug, content, ...frontmatter, views: 0, likes: 0 };
   }
   return null;
 }

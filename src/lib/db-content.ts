@@ -52,8 +52,16 @@ async function ensureInit(): Promise<void> {
           video_id TEXT,
           video_title TEXT,
           related JSONB NOT NULL DEFAULT '[]'::jsonb,
-          content TEXT NOT NULL
+          content TEXT NOT NULL,
+          views INTEGER NOT NULL DEFAULT 0,
+          likes INTEGER NOT NULL DEFAULT 0
         );
+      `);
+      await p.query(`
+        ALTER TABLE posts ADD COLUMN IF NOT EXISTS views INTEGER NOT NULL DEFAULT 0;
+      `);
+      await p.query(`
+        ALTER TABLE posts ADD COLUMN IF NOT EXISTS likes INTEGER NOT NULL DEFAULT 0;
       `);
     })();
   }
@@ -90,6 +98,8 @@ function mapPost(row: {
   video_title: string | null;
   related: Array<{ slug: string; anchor: string }> | string;
   content: string;
+  views?: number | string | null;
+  likes?: number | string | null;
 }): Post {
   const keywords =
     typeof row.keywords === "string" ? (JSON.parse(row.keywords) as string[]) : row.keywords;
@@ -117,7 +127,15 @@ function mapPost(row: {
         : undefined,
     related,
   };
-  return { slug: row.slug, content: row.content, ...frontmatter };
+  const views = Number(row.views ?? 0);
+  const likes = Number(row.likes ?? 0);
+  return {
+    slug: row.slug,
+    content: row.content,
+    ...frontmatter,
+    views: Number.isFinite(views) ? views : 0,
+    likes: Number.isFinite(likes) ? likes : 0,
+  };
 }
 
 export async function dbGetCategories(): Promise<Category[]> {
@@ -176,9 +194,9 @@ export async function dbUpsertPost(post: Post): Promise<void> {
   await p.query(
     `INSERT INTO posts (
       slug, title, description, category, main_keyword, keywords, published_at, updated_at,
-      published, seo_title, video_platform, video_id, video_title, related, content
+      published, seo_title, video_platform, video_id, video_title, related, content, views, likes
     ) VALUES (
-      $1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15
+      $1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15,0,0
     )
     ON CONFLICT (slug) DO UPDATE SET
       title = EXCLUDED.title,
@@ -194,7 +212,9 @@ export async function dbUpsertPost(post: Post): Promise<void> {
       video_id = EXCLUDED.video_id,
       video_title = EXCLUDED.video_title,
       related = EXCLUDED.related,
-      content = EXCLUDED.content`,
+      content = EXCLUDED.content,
+      views = posts.views,
+      likes = posts.likes`,
     [
       post.slug,
       post.title,
@@ -213,6 +233,32 @@ export async function dbUpsertPost(post: Post): Promise<void> {
       post.content,
     ],
   );
+}
+
+/** Increment view count for a published post. Returns new total or null if unavailable. */
+export async function dbIncrementPostView(slug: string): Promise<number | null> {
+  const pool = getPool();
+  if (!pool) return null;
+  await ensureInit();
+  const result = await pool.query(
+    `UPDATE posts SET views = views + 1 WHERE slug = $1 AND published = TRUE RETURNING views`,
+    [slug],
+  );
+  if (!result.rowCount) return null;
+  return Number(result.rows[0].views);
+}
+
+/** Adjust like count (delta +1 or -1). Returns new total or null. */
+export async function dbAdjustPostLike(slug: string, delta: 1 | -1): Promise<number | null> {
+  const pool = getPool();
+  if (!pool) return null;
+  await ensureInit();
+  const result = await pool.query(
+    `UPDATE posts SET likes = GREATEST(0, likes + $2) WHERE slug = $1 AND published = TRUE RETURNING likes`,
+    [slug, delta],
+  );
+  if (!result.rowCount) return null;
+  return Number(result.rows[0].likes);
 }
 
 export async function dbDeletePost(slug: string): Promise<boolean> {
