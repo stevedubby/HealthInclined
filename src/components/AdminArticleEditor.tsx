@@ -3,6 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { Category } from "@/lib/categories";
+import AdminRelatedArticlesPicker, {
+  type ArticlePickOption,
+  type RelatedLinkRow,
+} from "@/components/AdminRelatedArticlesPicker";
 import TiptapArticleBodyEditor from "@/components/TiptapArticleBodyEditor";
 import {
   EMPTY_TIPTAP_DOC_JSON,
@@ -24,10 +28,12 @@ export default function AdminArticleEditor({
   mode,
   slug: editSlug,
   categories,
+  allArticles,
 }: {
   mode: Mode;
   slug?: string;
   categories: Category[];
+  allArticles: ArticlePickOption[];
 }) {
   const defaultCat = categories[0]?.slug ?? "body-signals";
 
@@ -40,13 +46,16 @@ export default function AdminArticleEditor({
   const [keywordsText, setKeywordsText] = useState("");
   const [publishedAt, setPublishedAt] = useState(() => new Date().toISOString().slice(0, 10));
   const [updatedAt, setUpdatedAt] = useState("");
-  const [relatedText, setRelatedText] = useState("");
+  const [relatedLinks, setRelatedLinks] = useState<RelatedLinkRow[]>([]);
   const [videoPlatform, setVideoPlatform] = useState<"" | "youtube" | "tiktok">("");
   const [videoId, setVideoId] = useState("");
   const [videoTitle, setVideoTitle] = useState("");
   const [body, setBody] = useState(EMPTY_TIPTAP_DOC_JSON);
   const [editorMountKey, setEditorMountKey] = useState(0);
   const [published, setPublished] = useState(mode === "new" ? false : true);
+  const [featured, setFeatured] = useState(false);
+  const [thumbnailUrl, setThumbnailUrl] = useState("");
+  const [createdAt, setCreatedAt] = useState("");
   const [loading, setLoading] = useState(mode === "edit");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -88,6 +97,9 @@ export default function AdminArticleEditor({
             seoTitle?: string;
             video?: { platform: string; id: string; title?: string };
             related: { slug: string; anchor: string }[];
+            featured?: boolean;
+            createdAt?: string;
+            thumbnailUrl?: string;
           };
           body?: string;
         };
@@ -107,8 +119,8 @@ export default function AdminArticleEditor({
         setPublishedAt(fm.publishedAt);
         setUpdatedAt(fm.updatedAt ?? "");
         setPublished(fm.published !== false);
-        setRelatedText(
-          (fm.related ?? []).map((r) => `${r.slug}|${r.anchor}`).join("\n"),
+        setRelatedLinks(
+          (fm.related ?? []).map((r) => ({ slug: r.slug, anchor: r.anchor })),
         );
         if (fm.video) {
           setVideoPlatform(fm.video.platform as "youtube" | "tiktok");
@@ -123,6 +135,10 @@ export default function AdminArticleEditor({
           }
           setVideoTitle(fm.video.title ?? "");
         }
+
+        setFeatured(fm.featured === true);
+        setThumbnailUrl(fm.thumbnailUrl ?? "");
+        setCreatedAt(fm.createdAt?.trim() ?? "");
 
         const raw = data.body ?? "";
         if (isTiptapJsonContent(raw)) {
@@ -192,12 +208,18 @@ export default function AdminArticleEditor({
         publishedAt,
         updatedAt: updatedAt.trim() || undefined,
         body,
-        relatedText,
+        relatedText: relatedLinks.map((r) => `${r.slug}|${r.anchor}`).join("\n"),
         videoPlatform,
         videoId: videoIdOut,
         videoTitle,
         seoTitle: seoTitle.trim(),
+        featured,
+        thumbnailUrl: thumbnailUrl.trim(),
       };
+
+      if (mode === "edit" && createdAt.trim()) {
+        payload.createdAt = createdAt.trim();
+      }
 
       if (mode === "new") {
         payload.published = nextPublished === "keep" ? false : nextPublished;
@@ -347,6 +369,34 @@ export default function AdminArticleEditor({
                 </select>
               </label>
 
+              <label className={`${labelClass} flex items-center gap-3 sm:col-span-2`}>
+                <input
+                  type="checkbox"
+                  checked={featured}
+                  onChange={(ev) => setFeatured(ev.target.checked)}
+                  className="h-4 w-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500 dark:border-zinc-600"
+                />
+                <span>
+                  Mark as featured{" "}
+                  <span className="font-normal normal-case text-zinc-400 dark:text-zinc-600">
+                    (homepage spotlight — only one article should be featured at a time)
+                  </span>
+                </span>
+              </label>
+
+              <label className={`${labelClass} sm:col-span-2`}>
+                Thumbnail image URL{" "}
+                <span className="font-normal normal-case text-zinc-400 dark:text-zinc-600">
+                  (optional — used on article cards; leave empty to use the first image in the body)
+                </span>
+                <input
+                  value={thumbnailUrl}
+                  onChange={(ev) => setThumbnailUrl(ev.target.value)}
+                  className={`${inputClass} font-mono text-xs`}
+                  placeholder="https://…"
+                />
+              </label>
+
               <label className={labelClass}>
                 Published date
                 <input
@@ -472,17 +522,13 @@ export default function AdminArticleEditor({
           <section className={`rounded-2xl border ${borderB} bg-white/70 p-5 dark:bg-zinc-900/40 sm:p-6`}>
             <h2 className={sectionTitle}>Related articles</h2>
             <p className="mt-1 text-xs text-zinc-500">
-              One per line:{" "}
-              <code className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-[11px] text-emerald-700 dark:bg-zinc-800 dark:text-emerald-400/90">
-                slug|anchor text
-              </code>
+              Search your library and pick articles. You can edit the link label readers see.
             </p>
-            <textarea
-              value={relatedText}
-              onChange={(ev) => setRelatedText(ev.target.value)}
-              rows={5}
-              className={`${inputClass} mt-3 font-mono text-xs`}
-              placeholder={`eye-twitching|read about eyelid twitching`}
+            <AdminRelatedArticlesPicker
+              allArticles={allArticles}
+              excludeSlug={mode === "edit" && editSlug ? editSlug : slug.trim().toLowerCase()}
+              value={relatedLinks}
+              onChange={setRelatedLinks}
             />
           </section>
 

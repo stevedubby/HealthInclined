@@ -46,6 +46,9 @@ export async function GET(_req: Request, ctx: Ctx) {
       seoTitle: data.seoTitle,
       video: data.video,
       related: data.related,
+      featured: data.featured,
+      createdAt: data.createdAt,
+      thumbnailUrl: data.thumbnailUrl,
     },
     body: data.content,
   });
@@ -67,6 +70,9 @@ type UpdateBody = {
   videoPlatform?: "" | "youtube" | "tiktok";
   videoId?: string;
   videoTitle?: string;
+  featured?: boolean;
+  createdAt?: string;
+  thumbnailUrl?: string;
 };
 
 export async function PUT(req: Request, ctx: Ctx) {
@@ -126,6 +132,9 @@ export async function PUT(req: Request, ctx: Ctx) {
       ? prior.published !== false
       : body.published === true;
 
+  const createdAtPersist =
+    String(body.createdAt ?? "").trim() || prior.createdAt || prior.publishedAt;
+
   const frontmatter: PostFrontmatter = {
     title,
     description,
@@ -135,7 +144,23 @@ export async function PUT(req: Request, ctx: Ctx) {
     publishedAt,
     updatedAt: body.updatedAt?.trim() || publishedAt,
     related,
+    createdAt: createdAtPersist,
   };
+
+  const featuredNext =
+    body.featured === undefined ? prior.featured === true : body.featured === true;
+  if (featuredNext) {
+    frontmatter.featured = true;
+  } else {
+    delete frontmatter.featured;
+  }
+
+  const thumb = String(body.thumbnailUrl ?? "").trim();
+  if (thumb) {
+    frontmatter.thumbnailUrl = thumb;
+  } else {
+    delete frontmatter.thumbnailUrl;
+  }
 
   if (!isLive) {
     frontmatter.published = false;
@@ -257,6 +282,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
     seoTitle: prior.seoTitle,
     video: prior.video,
     related: prior.related,
+    featured: prior.featured,
+    createdAt: prior.createdAt ?? prior.publishedAt,
+    thumbnailUrl: prior.thumbnailUrl,
   };
   if (body.published === false) {
     nextFm.published = false;

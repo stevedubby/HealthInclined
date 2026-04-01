@@ -1,7 +1,17 @@
 import fs from "node:fs";
 import path from "node:path";
 import matter from "gray-matter";
-import { dbDeletePost, dbGetAllPosts, dbGetPostBySlug, dbUpsertPost, isDatabaseEnabled } from "@/lib/db-content";
+import {
+  dbDeletePost,
+  dbGetAllPosts,
+  dbGetFeaturedPublicPost,
+  dbGetLatestPublicPosts,
+  dbGetPostBySlug,
+  dbGetPublishedCountByCategory,
+  dbSearchPublicPosts,
+  dbUpsertPost,
+  isDatabaseEnabled,
+} from "@/lib/db-content";
 import { getReadContentRoots } from "@/lib/content-paths";
 
 export type VideoSpec = {
@@ -29,6 +39,12 @@ export type PostFrontmatter = {
   seoTitle?: string;
   video?: VideoSpec;
   related: RelatedLink[];
+  /** Homepage spotlight (database); only one published post should be featured. */
+  featured?: boolean;
+  /** Creation / sort time (ISO string); falls back to `publishedAt` when unset. */
+  createdAt?: string;
+  /** Optional card image URL (database). */
+  thumbnailUrl?: string;
 };
 
 export type Post = PostFrontmatter & {
@@ -66,7 +82,16 @@ function loadPostFromDisk(slug: string): Post | null {
     const filePath = path.join(root, "blog", `${slug}.md`);
     if (!fs.existsSync(filePath)) continue;
     const { frontmatter, content } = readPostFile(filePath);
-    return { slug, content, ...frontmatter, views: 0, likes: 0 };
+    return {
+      slug,
+      content,
+      ...frontmatter,
+      featured: frontmatter.featured === true ? true : undefined,
+      createdAt: frontmatter.createdAt?.trim() || frontmatter.publishedAt,
+      thumbnailUrl: frontmatter.thumbnailUrl?.trim() || undefined,
+      views: 0,
+      likes: 0,
+    };
   }
   return null;
 }
@@ -183,6 +208,9 @@ export async function upsertPostAsync(post: Post): Promise<void> {
     seoTitle: post.seoTitle,
     video: post.video,
     related: post.related,
+    featured: post.featured === true ? true : undefined,
+    createdAt: post.createdAt,
+    thumbnailUrl: post.thumbnailUrl,
   } satisfies PostFrontmatter;
   const raw = matter.stringify(post.content.trim() + "\n", matterPayload as Record<string, unknown>);
   const dir = path.join(process.cwd(), "content", "blog");
@@ -196,4 +224,81 @@ export async function deletePostAsync(slug: string): Promise<boolean> {
   if (!fs.existsSync(filePath)) return false;
   fs.unlinkSync(filePath);
   return true;
+}
+
+function sortPostsByNewest(posts: Post[]): Post[] {
+  return [...posts].sort((a, b) => {
+    const ta = new Date(a.createdAt ?? a.publishedAt).getTime();
+    const tb = new Date(b.createdAt ?? b.publishedAt).getTime();
+    return tb - ta;
+  });
+}
+
+/** Single published post marked featured (admin). */
+export async function getFeaturedPostAsync(): Promise<Post | null> {
+  if (isDatabaseEnabled()) {
+    try {
+      const p = await dbGetFeaturedPublicPost();
+      if (p) return p;
+    } catch {
+      /* fall through */
+    }
+  }
+  const posts = loadAllPostsFromDisk().filter((p) => p.published !== false && p.featured === true);
+  return sortPostsByNewest(posts)[0] ?? null;
+}
+
+/** Latest published posts by `createdAt` (fallback `publishedAt`). */
+export async function getLatestPublicPostsAsync(
+  limit: number,
+  excludeSlug?: string,
+): Promise<Post[]> {
+  if (isDatabaseEnabled()) {
+    try {
+      return await dbGetLatestPublicPosts(limit, excludeSlug);
+    } catch {
+      /* fall through */
+    }
+  }
+  let list = loadAllPostsFromDisk().filter((p) => p.published !== false);
+  if (excludeSlug) list = list.filter((p) => p.slug !== excludeSlug);
+  return sortPostsByNewest(list).slice(0, limit);
+}
+
+/** Case-insensitive match on title + raw article body (TipTap JSON or text). */
+export async function searchPostsPublicAsync(query: string, limit = 20): Promise<Post[]> {
+  const q = query.trim();
+  if (!q) return [];
+  if (isDatabaseEnabled()) {
+    try {
+      return await dbSearchPublicPosts(q, limit);
+    } catch {
+      /* fall through */
+    }
+  }
+  const lower = q.toLowerCase();
+  return loadAllPostsFromDisk()
+    .filter((p) => p.published !== false)
+    .filter(
+      (p) =>
+        p.title.toLowerCase().includes(lower) || p.content.toLowerCase().includes(lower),
+    )
+    .slice(0, limit);
+}
+
+/** Published article counts keyed by category slug. */
+export async function getPublishedArticleCountsByCategoryAsync(): Promise<Record<string, number>> {
+  if (isDatabaseEnabled()) {
+    try {
+      return await dbGetPublishedCountByCategory();
+    } catch {
+      /* fall through */
+    }
+  }
+  const counts: Record<string, number> = {};
+  for (const p of loadAllPostsFromDisk()) {
+    if (p.published === false) continue;
+    counts[p.category] = (counts[p.category] ?? 0) + 1;
+  }
+  return counts;
 }

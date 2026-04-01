@@ -54,7 +54,10 @@ async function ensureInit(): Promise<void> {
           related JSONB NOT NULL DEFAULT '[]'::jsonb,
           content TEXT NOT NULL,
           views INTEGER NOT NULL DEFAULT 0,
-          likes INTEGER NOT NULL DEFAULT 0
+          likes INTEGER NOT NULL DEFAULT 0,
+          featured BOOLEAN NOT NULL DEFAULT FALSE,
+          created_at TEXT,
+          thumbnail_url TEXT
         );
       `);
       await p.query(`
@@ -62,6 +65,18 @@ async function ensureInit(): Promise<void> {
       `);
       await p.query(`
         ALTER TABLE posts ADD COLUMN IF NOT EXISTS likes INTEGER NOT NULL DEFAULT 0;
+      `);
+      await p.query(`
+        ALTER TABLE posts ADD COLUMN IF NOT EXISTS featured BOOLEAN NOT NULL DEFAULT FALSE;
+      `);
+      await p.query(`
+        ALTER TABLE posts ADD COLUMN IF NOT EXISTS created_at TEXT;
+      `);
+      await p.query(`
+        ALTER TABLE posts ADD COLUMN IF NOT EXISTS thumbnail_url TEXT;
+      `);
+      await p.query(`
+        UPDATE posts SET created_at = published_at WHERE created_at IS NULL OR created_at = '';
       `);
     })();
   }
@@ -100,6 +115,9 @@ function mapPost(row: {
   content: string;
   views?: number | string | null;
   likes?: number | string | null;
+  featured?: boolean | null;
+  created_at?: string | null;
+  thumbnail_url?: string | null;
 }): Post {
   const keywords =
     typeof row.keywords === "string" ? (JSON.parse(row.keywords) as string[]) : row.keywords;
@@ -126,6 +144,9 @@ function mapPost(row: {
           }
         : undefined,
     related,
+    featured: row.featured === true ? true : undefined,
+    createdAt: row.created_at?.trim() || row.published_at,
+    thumbnailUrl: row.thumbnail_url?.trim() || undefined,
   };
   const views = Number(row.views ?? 0);
   const likes = Number(row.likes ?? 0);
@@ -188,51 +209,148 @@ export async function dbGetPostBySlug(slug: string): Promise<Post | null> {
 }
 
 export async function dbUpsertPost(post: Post): Promise<void> {
-  const p = getPool();
-  if (!p) return;
+  const pool = getPool();
+  if (!pool) return;
   await ensureInit();
-  await p.query(
-    `INSERT INTO posts (
-      slug, title, description, category, main_keyword, keywords, published_at, updated_at,
-      published, seo_title, video_platform, video_id, video_title, related, content, views, likes
-    ) VALUES (
-      $1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15,0,0
-    )
-    ON CONFLICT (slug) DO UPDATE SET
-      title = EXCLUDED.title,
-      description = EXCLUDED.description,
-      category = EXCLUDED.category,
-      main_keyword = EXCLUDED.main_keyword,
-      keywords = EXCLUDED.keywords,
-      published_at = EXCLUDED.published_at,
-      updated_at = EXCLUDED.updated_at,
-      published = EXCLUDED.published,
-      seo_title = EXCLUDED.seo_title,
-      video_platform = EXCLUDED.video_platform,
-      video_id = EXCLUDED.video_id,
-      video_title = EXCLUDED.video_title,
-      related = EXCLUDED.related,
-      content = EXCLUDED.content,
-      views = posts.views,
-      likes = posts.likes`,
-    [
-      post.slug,
-      post.title,
-      post.description,
-      post.category,
-      post.mainKeyword,
-      JSON.stringify(post.keywords ?? []),
-      post.publishedAt,
-      post.updatedAt ?? null,
-      post.published !== false,
-      post.seoTitle ?? null,
-      post.video?.platform ?? null,
-      post.video?.id ?? null,
-      post.video?.title ?? null,
-      JSON.stringify(post.related ?? []),
-      post.content,
-    ],
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    if (post.featured === true) {
+      await client.query(`UPDATE posts SET featured = FALSE WHERE slug <> $1`, [post.slug]);
+    }
+
+    const trimmedCreated = post.createdAt?.trim();
+    let createdAtVal: string;
+    if (trimmedCreated) {
+      createdAtVal = trimmedCreated;
+    } else {
+      const prev = await client.query(`SELECT created_at FROM posts WHERE slug = $1`, [post.slug]);
+      const existing = prev.rows[0]?.created_at as string | undefined;
+      createdAtVal =
+        existing?.trim() || new Date().toISOString();
+    }
+
+    await client.query(
+      `INSERT INTO posts (
+        slug, title, description, category, main_keyword, keywords, published_at, updated_at,
+        published, seo_title, video_platform, video_id, video_title, related, content, views, likes,
+        featured, created_at, thumbnail_url
+      ) VALUES (
+        $1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15,0,0,$16,$17,$18
+      )
+      ON CONFLICT (slug) DO UPDATE SET
+        title = EXCLUDED.title,
+        description = EXCLUDED.description,
+        category = EXCLUDED.category,
+        main_keyword = EXCLUDED.main_keyword,
+        keywords = EXCLUDED.keywords,
+        published_at = EXCLUDED.published_at,
+        updated_at = EXCLUDED.updated_at,
+        published = EXCLUDED.published,
+        seo_title = EXCLUDED.seo_title,
+        video_platform = EXCLUDED.video_platform,
+        video_id = EXCLUDED.video_id,
+        video_title = EXCLUDED.video_title,
+        related = EXCLUDED.related,
+        content = EXCLUDED.content,
+        views = posts.views,
+        likes = posts.likes,
+        featured = EXCLUDED.featured,
+        created_at = COALESCE(NULLIF(TRIM(posts.created_at::text), ''), EXCLUDED.created_at),
+        thumbnail_url = EXCLUDED.thumbnail_url`,
+      [
+        post.slug,
+        post.title,
+        post.description,
+        post.category,
+        post.mainKeyword,
+        JSON.stringify(post.keywords ?? []),
+        post.publishedAt,
+        post.updatedAt ?? null,
+        post.published !== false,
+        post.seoTitle ?? null,
+        post.video?.platform ?? null,
+        post.video?.id ?? null,
+        post.video?.title ?? null,
+        JSON.stringify(post.related ?? []),
+        post.content,
+        post.featured === true,
+        createdAtVal,
+        post.thumbnailUrl?.trim() || null,
+      ],
+    );
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+export async function dbGetFeaturedPublicPost(): Promise<Post | null> {
+  const p = getPool();
+  if (!p) return null;
+  await ensureInit();
+  const result = await p.query(
+    `SELECT * FROM posts WHERE published = TRUE AND featured = TRUE
+     ORDER BY COALESCE(NULLIF(TRIM(created_at::text), ''), published_at) DESC, slug ASC
+     LIMIT 1`,
   );
+  if (!result.rows[0]) return null;
+  return mapPost(result.rows[0]);
+}
+
+export async function dbGetLatestPublicPosts(limit: number, excludeSlug?: string): Promise<Post[]> {
+  const p = getPool();
+  if (!p) return [];
+  await ensureInit();
+  const lim = Math.min(Math.max(1, Math.floor(limit)), 48);
+  const ex = excludeSlug?.trim();
+  const orderSql =
+    "ORDER BY COALESCE(NULLIF(TRIM(created_at::text), ''), published_at) DESC NULLS LAST, slug ASC";
+  const result = ex
+    ? await p.query(
+        `SELECT * FROM posts WHERE published = TRUE AND slug <> $1 ${orderSql} LIMIT $2`,
+        [ex, lim],
+      )
+    : await p.query(`SELECT * FROM posts WHERE published = TRUE ${orderSql} LIMIT $1`, [lim]);
+  return result.rows.map(mapPost);
+}
+
+export async function dbSearchPublicPosts(query: string, limit: number): Promise<Post[]> {
+  const p = getPool();
+  if (!p) return [];
+  await ensureInit();
+  const q = query.trim();
+  if (!q) return [];
+  const lim = Math.min(Math.max(1, Math.floor(limit)), 48);
+  const result = await p.query(
+    `SELECT * FROM posts
+     WHERE published = TRUE
+       AND (
+         POSITION(LOWER($1::text) IN LOWER(title)) > 0
+         OR POSITION(LOWER($1::text) IN LOWER(content)) > 0
+       )
+     ORDER BY COALESCE(NULLIF(TRIM(created_at::text), ''), published_at) DESC NULLS LAST, slug ASC
+     LIMIT $2`,
+    [q, lim],
+  );
+  return result.rows.map(mapPost);
+}
+
+export async function dbGetPublishedCountByCategory(): Promise<Record<string, number>> {
+  const p = getPool();
+  if (!p) return {};
+  await ensureInit();
+  const result = await p.query(
+    `SELECT category, COUNT(*)::int AS n FROM posts WHERE published = TRUE GROUP BY category`,
+  );
+  const out: Record<string, number> = {};
+  for (const row of result.rows as { category: string; n: number }[]) {
+    out[row.category] = row.n;
+  }
+  return out;
 }
 
 /** Increment view count for a published post. Returns new total or null if unavailable. */

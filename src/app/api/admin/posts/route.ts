@@ -49,6 +49,9 @@ type CreateBody = {
   videoPlatform?: "" | "youtube" | "tiktok";
   videoId?: string;
   videoTitle?: string;
+  /** Homepage featured slot (only one published post should be featured). */
+  featured?: boolean;
+  thumbnailUrl?: string;
 };
 
 export async function POST(req: Request) {
@@ -113,7 +116,17 @@ export async function POST(req: Request) {
     publishedAt,
     updatedAt: body.updatedAt?.trim() || publishedAt,
     related,
+    createdAt: new Date().toISOString(),
   };
+
+  if (body.featured === true) {
+    frontmatter.featured = true;
+  }
+
+  const thumb = String(body.thumbnailUrl ?? "").trim();
+  if (thumb) {
+    frontmatter.thumbnailUrl = thumb;
+  }
 
   if (!isLive) {
     frontmatter.published = false;
