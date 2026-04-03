@@ -57,7 +57,8 @@ async function ensureInit(): Promise<void> {
           likes INTEGER NOT NULL DEFAULT 0,
           featured BOOLEAN NOT NULL DEFAULT FALSE,
           created_at TEXT,
-          thumbnail_url TEXT
+          thumbnail_url TEXT,
+          last_saved_at TEXT
         );
       `);
       await p.query(`
@@ -74,6 +75,9 @@ async function ensureInit(): Promise<void> {
       `);
       await p.query(`
         ALTER TABLE posts ADD COLUMN IF NOT EXISTS thumbnail_url TEXT;
+      `);
+      await p.query(`
+        ALTER TABLE posts ADD COLUMN IF NOT EXISTS last_saved_at TEXT;
       `);
       await p.query(`
         UPDATE posts SET created_at = published_at WHERE created_at IS NULL OR created_at = '';
@@ -118,6 +122,7 @@ function mapPost(row: {
   featured?: boolean | null;
   created_at?: string | null;
   thumbnail_url?: string | null;
+  last_saved_at?: string | null;
 }): Post {
   const keywords =
     typeof row.keywords === "string" ? (JSON.parse(row.keywords) as string[]) : row.keywords;
@@ -147,6 +152,7 @@ function mapPost(row: {
     featured: row.featured === true ? true : undefined,
     createdAt: row.created_at?.trim() || row.published_at,
     thumbnailUrl: row.thumbnail_url?.trim() || undefined,
+    lastSavedAt: row.last_saved_at?.trim() || undefined,
   };
   const views = Number(row.views ?? 0);
   const likes = Number(row.likes ?? 0);
@@ -234,9 +240,9 @@ export async function dbUpsertPost(post: Post): Promise<void> {
       `INSERT INTO posts (
         slug, title, description, category, main_keyword, keywords, published_at, updated_at,
         published, seo_title, video_platform, video_id, video_title, related, content, views, likes,
-        featured, created_at, thumbnail_url
+        featured, created_at, thumbnail_url, last_saved_at
       ) VALUES (
-        $1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15,0,0,$16,$17,$18
+        $1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15,0,0,$16,$17,$18,$19
       )
       ON CONFLICT (slug) DO UPDATE SET
         title = EXCLUDED.title,
@@ -257,7 +263,8 @@ export async function dbUpsertPost(post: Post): Promise<void> {
         likes = posts.likes,
         featured = EXCLUDED.featured,
         created_at = COALESCE(NULLIF(TRIM(posts.created_at::text), ''), EXCLUDED.created_at),
-        thumbnail_url = EXCLUDED.thumbnail_url`,
+        thumbnail_url = EXCLUDED.thumbnail_url,
+        last_saved_at = COALESCE(EXCLUDED.last_saved_at, posts.last_saved_at)`,
       [
         post.slug,
         post.title,
@@ -277,6 +284,7 @@ export async function dbUpsertPost(post: Post): Promise<void> {
         post.featured === true,
         createdAtVal,
         post.thumbnailUrl?.trim() || null,
+        post.lastSavedAt?.trim() || null,
       ],
     );
     await client.query("COMMIT");
@@ -384,5 +392,33 @@ export async function dbDeletePost(slug: string): Promise<boolean> {
   if (!p) return false;
   await ensureInit();
   const result = await p.query("DELETE FROM posts WHERE slug = $1", [slug]);
+  return (result.rowCount ?? 0) > 0;
+}
+
+/** Lightweight autosave for unpublished drafts only. */
+export async function dbPatchDraftAutosave(
+  slug: string,
+  patch: {
+    title: string;
+    content: string;
+    category: string;
+    thumbnailUrl: string | null;
+    lastSavedAt: string;
+  },
+): Promise<boolean> {
+  const p = getPool();
+  if (!p) return false;
+  await ensureInit();
+  const result = await p.query(
+    `UPDATE posts SET
+      title = $2,
+      content = $3,
+      category = $4,
+      thumbnail_url = $5,
+      last_saved_at = $6,
+      updated_at = $6
+    WHERE slug = $1 AND published = FALSE`,
+    [slug, patch.title, patch.content, patch.category, patch.thumbnailUrl, patch.lastSavedAt],
+  );
   return (result.rowCount ?? 0) > 0;
 }

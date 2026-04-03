@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { Category } from "@/lib/categories";
 import AdminRelatedArticlesPicker, {
   type ArticlePickOption,
@@ -22,6 +23,12 @@ function effectiveMetaTitle(seoTitle: string, title: string): string {
   return s || title.trim();
 }
 
+const AUTOSAVE_LS_PREFIX = "healthinclined-editor-autosave:v1";
+
+function autosaveStorageKey(slug: string | null) {
+  return slug ? `${AUTOSAVE_LS_PREFIX}:${slug}` : `${AUTOSAVE_LS_PREFIX}:new`;
+}
+
 type Mode = "new" | "edit";
 
 export default function AdminArticleEditor({
@@ -35,6 +42,7 @@ export default function AdminArticleEditor({
   categories: Category[];
   allArticles: ArticlePickOption[];
 }) {
+  const router = useRouter();
   const defaultCat = categories[0]?.slug ?? "body-signals";
 
   const [slug, setSlug] = useState(editSlug ?? "");
@@ -61,6 +69,36 @@ export default function AdminArticleEditor({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  const [autosaveState, setAutosaveState] = useState<"idle" | "saving" | "saved" | "error" | "local">(
+    "idle",
+  );
+  const [lastAutosaveAt, setLastAutosaveAt] = useState<string | null>(null);
+  const [lastServerSavedAt, setLastServerSavedAt] = useState<string | null>(null);
+  const [remoteDraftSlug, setRemoteDraftSlug] = useState<string | null>(() =>
+    mode === "edit" && editSlug ? editSlug : null,
+  );
+
+  const snapRef = useRef({
+    title: "",
+    body: "",
+    category: defaultCat,
+    thumbnailUrl: "",
+  });
+  const ctxRef = useRef({
+    mode,
+    editSlug: editSlug ?? null,
+    remoteDraftSlug: null as string | null,
+    published: mode === "new" ? false : true,
+  });
+  const slugRef = useRef(slug);
+  const inFlightRef = useRef(false);
+  const hydratedNewRef = useRef(false);
+  const flushAutosaveRef = useRef<() => Promise<void>>(async () => {});
+
+  slugRef.current = slug;
+  snapRef.current = { title, body, category, thumbnailUrl };
+  ctxRef.current = { mode, editSlug: editSlug ?? null, remoteDraftSlug, published };
+
   const metaTitle = useMemo(() => effectiveMetaTitle(seoTitle, title), [seoTitle, title]);
   const metaTitleLen = metaTitle.length;
   const descLen = description.trim().length;
@@ -70,10 +108,193 @@ export default function AdminArticleEditor({
   const metaHasKeyword =
     keywordLower.length > 0 && metaTitle.toLowerCase().includes(keywordLower);
 
+  const autosaveLine = useMemo(() => {
+    if (published) return "";
+    if (autosaveState === "saving") return "Saving…";
+    if (autosaveState === "local") {
+      return lastAutosaveAt
+        ? `Saved in this browser · ${new Date(lastAutosaveAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} — connect a database to sync drafts to the server.`
+        : "Saved in this browser only — connect a database to sync drafts to the server.";
+    }
+    if (autosaveState === "error") {
+      return "Autosave failed — your work stays in this browser until you use Save or Publish.";
+    }
+    if (autosaveState === "saved" && lastAutosaveAt) {
+      return `Saved · ${new Date(lastAutosaveAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" })}`;
+    }
+    if (lastAutosaveAt) {
+      return `Last saved · ${new Date(lastAutosaveAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" })}`;
+    }
+    return "Autosave runs about every 12 seconds and after you pause typing.";
+  }, [published, autosaveState, lastAutosaveAt]);
+
   useEffect(() => {
     if (categories.some((c) => c.slug === category)) return;
     setCategory(defaultCat);
   }, [categories, category, defaultCat]);
+
+  useEffect(() => {
+    if (mode !== "new" || loading || hydratedNewRef.current) return;
+    try {
+      const raw = localStorage.getItem(autosaveStorageKey(null));
+      if (raw) {
+        const d = JSON.parse(raw) as {
+          body?: string;
+          title?: string;
+          category?: string;
+          thumbnailUrl?: string;
+        };
+        if (d.title) setTitle(d.title);
+        if (d.category && categories.some((c) => c.slug === d.category)) setCategory(d.category);
+        if (d.thumbnailUrl !== undefined) setThumbnailUrl(d.thumbnailUrl);
+        if (d.body && isTiptapJsonContent(d.body)) {
+          setBody(d.body);
+          setEditorMountKey((k) => k + 1);
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    hydratedNewRef.current = true;
+  }, [mode, loading, categories]);
+
+  useEffect(() => {
+    flushAutosaveRef.current = async () => {
+      if (inFlightRef.current) return;
+      const ctx = ctxRef.current;
+      if (ctx.published) return;
+      const snap = snapRef.current;
+      const wasNew = ctx.mode === "new";
+      inFlightRef.current = true;
+      setAutosaveState("saving");
+      const payload = {
+        title: snap.title.trim() || "Untitled draft",
+        body: snap.body,
+        category: snap.category,
+        thumbnailUrl: snap.thumbnailUrl.trim(),
+      };
+      try {
+        const slugForPut = ctx.mode === "edit" ? ctx.editSlug : ctx.remoteDraftSlug;
+        let res: Response;
+        if (slugForPut) {
+          res = await fetch(`/api/articles/${encodeURIComponent(slugForPut)}/draft`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+            credentials: "include",
+          });
+        } else {
+          const userSlug = slugRef.current.trim().toLowerCase();
+          const postBody: Record<string, unknown> = { ...payload };
+          if (userSlug && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(userSlug) && userSlug.length <= 120) {
+            postBody.slug = userSlug;
+          }
+          res = await fetch("/api/articles/draft", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(postBody),
+            credentials: "include",
+          });
+        }
+        const data = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          slug?: string;
+          lastSavedAt?: string;
+          error?: string;
+          code?: string;
+        };
+        if (!res.ok) {
+          if (res.status === 503) {
+            setAutosaveState("local");
+            setLastAutosaveAt(new Date().toISOString());
+          } else {
+            setAutosaveState("error");
+          }
+          return;
+        }
+        if (data.lastSavedAt) {
+          setLastAutosaveAt(data.lastSavedAt);
+          setLastServerSavedAt(data.lastSavedAt);
+        }
+        if (data.slug) {
+          setRemoteDraftSlug(data.slug);
+          if (wasNew) {
+            router.replace(`/admin/posts/${encodeURIComponent(data.slug)}/edit`);
+          }
+        }
+        setAutosaveState("saved");
+      } catch {
+        setAutosaveState("error");
+      } finally {
+        inFlightRef.current = false;
+      }
+    };
+  }, [router]);
+
+  useEffect(() => {
+    if (mode !== "edit" || !editSlug || loading || published || !lastServerSavedAt) return;
+    try {
+      const raw = localStorage.getItem(autosaveStorageKey(editSlug));
+      if (!raw) return;
+      const d = JSON.parse(raw) as {
+        savedAt?: string;
+        title?: string;
+        body?: string;
+        category?: string;
+        thumbnailUrl?: string;
+      };
+      if (!d.savedAt || new Date(d.savedAt) <= new Date(lastServerSavedAt)) return;
+      if (d.title) setTitle(d.title);
+      if (d.category && categories.some((c) => c.slug === d.category)) setCategory(d.category);
+      if (d.thumbnailUrl !== undefined) setThumbnailUrl(d.thumbnailUrl);
+      if (d.body && isTiptapJsonContent(d.body)) {
+        setBody(d.body);
+        setEditorMountKey((k) => k + 1);
+      }
+      setAutosaveState("local");
+    } catch {
+      /* ignore */
+    }
+  }, [mode, editSlug, loading, published, lastServerSavedAt, categories]);
+
+  useEffect(() => {
+    if (published) return;
+    const slugKey = mode === "edit" && editSlug ? editSlug : remoteDraftSlug;
+    const id = window.setTimeout(() => {
+      try {
+        localStorage.setItem(
+          autosaveStorageKey(slugKey),
+          JSON.stringify({
+            v: 1,
+            savedAt: new Date().toISOString(),
+            title,
+            body,
+            category,
+            thumbnailUrl,
+          }),
+        );
+      } catch {
+        /* quota */
+      }
+    }, 700);
+    return () => clearTimeout(id);
+  }, [title, body, category, thumbnailUrl, published, mode, editSlug, remoteDraftSlug]);
+
+  useEffect(() => {
+    if (published) return;
+    const id = window.setTimeout(() => {
+      void flushAutosaveRef.current();
+    }, 2500);
+    return () => clearTimeout(id);
+  }, [title, body, category, thumbnailUrl, published]);
+
+  useEffect(() => {
+    if (published) return;
+    const id = window.setInterval(() => {
+      void flushAutosaveRef.current();
+    }, 12000);
+    return () => clearInterval(id);
+  }, [published]);
 
   useEffect(() => {
     if (mode !== "edit" || !editSlug) return;
@@ -100,6 +321,7 @@ export default function AdminArticleEditor({
             featured?: boolean;
             createdAt?: string;
             thumbnailUrl?: string;
+            lastSavedAt?: string;
           };
           body?: string;
         };
@@ -109,6 +331,9 @@ export default function AdminArticleEditor({
         }
         if (cancelled || !data.frontmatter) return;
         const fm = data.frontmatter;
+        setLastServerSavedAt(fm.lastSavedAt?.trim() || fm.createdAt?.trim() || fm.publishedAt || null);
+        setLastAutosaveAt(fm.lastSavedAt?.trim() || null);
+        setRemoteDraftSlug(editSlug);
         setSlug(editSlug);
         setTitle(fm.title);
         setSeoTitle(fm.seoTitle ?? "");
@@ -244,6 +469,7 @@ export default function AdminArticleEditor({
         setSaving(false);
         return;
       }
+      setLastAutosaveAt(new Date().toISOString());
       if ((videoPlatform === "youtube" || videoPlatform === "tiktok") && videoIdOut) {
         setVideoId(videoIdOut);
       }
@@ -293,26 +519,33 @@ export default function AdminArticleEditor({
             Write visually (like Medium or Notion), tune SEO, choose a category, then publish or keep a private draft.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {mode === "edit" && editSlug && published ? (
-            <Link
-              href={`/blog/${editSlug}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-xl border border-zinc-300 px-4 py-2.5 text-sm font-semibold text-zinc-800 transition hover:border-emerald-500/40 hover:text-emerald-700 dark:border-zinc-600 dark:text-zinc-200 dark:hover:text-emerald-300"
+        <div className="flex flex-col items-stretch gap-1 sm:items-end">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {mode === "edit" && editSlug && published ? (
+              <Link
+                href={`/blog/${editSlug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-xl border border-zinc-300 px-4 py-2.5 text-sm font-semibold text-zinc-800 transition hover:border-emerald-500/40 hover:text-emerald-700 dark:border-zinc-600 dark:text-zinc-200 dark:hover:text-emerald-300"
+              >
+                View live ↗
+              </Link>
+            ) : null}
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-bold ${
+                published
+                  ? "bg-emerald-500/15 text-emerald-800 ring-1 ring-emerald-500/25 dark:text-emerald-300 dark:ring-emerald-500/35"
+                  : "bg-amber-500/10 text-amber-900 ring-1 ring-amber-500/20 dark:text-amber-200 dark:ring-amber-500/25"
+              }`}
             >
-              View live ↗
-            </Link>
+              {published ? "Published" : "Draft"}
+            </span>
+          </div>
+          {!published ? (
+            <p className="max-w-sm text-right text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
+              {autosaveLine}
+            </p>
           ) : null}
-          <span
-            className={`rounded-full px-3 py-1 text-xs font-bold ${
-              published
-                ? "bg-emerald-500/15 text-emerald-800 ring-1 ring-emerald-500/25 dark:text-emerald-300 dark:ring-emerald-500/35"
-                : "bg-amber-500/10 text-amber-900 ring-1 ring-amber-500/20 dark:text-amber-200 dark:ring-amber-500/25"
-            }`}
-          >
-            {published ? "Published" : "Draft"}
-          </span>
         </div>
       </div>
 

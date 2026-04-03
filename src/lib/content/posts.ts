@@ -45,6 +45,8 @@ export type PostFrontmatter = {
   createdAt?: string;
   /** Optional card image URL (database). */
   thumbnailUrl?: string;
+  /** ISO timestamp of last autosave (database). */
+  lastSavedAt?: string;
 };
 
 export type Post = PostFrontmatter & {
@@ -211,6 +213,7 @@ export async function upsertPostAsync(post: Post): Promise<void> {
     featured: post.featured === true ? true : undefined,
     createdAt: post.createdAt,
     thumbnailUrl: post.thumbnailUrl,
+    lastSavedAt: post.lastSavedAt,
   } satisfies PostFrontmatter;
   const raw = matter.stringify(post.content.trim() + "\n", matterPayload as Record<string, unknown>);
   const dir = path.join(process.cwd(), "content", "blog");

@@ -9,17 +9,19 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const hidePublicChrome = pathname === "/admin" || pathname?.startsWith("/admin/");
 
-  if (hidePublicChrome) {
-    return <>{children}</>;
-  }
-
   return (
-    <>
-      <SiteHeader />
-      <main id="main" className="flex-1">
-        {children}
-      </main>
+    <div className="flex min-h-screen flex-1 flex-col">
+      {hidePublicChrome ? (
+        <div className="flex flex-1 flex-col">{children}</div>
+      ) : (
+        <>
+          <SiteHeader />
+          <main id="main" className="flex-1">
+            {children}
+          </main>
+        </>
+      )}
       <SiteFooter />
-    </>
+    </div>
   );
 }

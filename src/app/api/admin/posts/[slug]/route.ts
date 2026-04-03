@@ -49,6 +49,8 @@ export async function GET(_req: Request, ctx: Ctx) {
       featured: data.featured,
       createdAt: data.createdAt,
       thumbnailUrl: data.thumbnailUrl,
+      lastSavedAt: data.lastSavedAt,
+      status: data.published === false ? ("draft" as const) : ("published" as const),
     },
     body: data.content,
   });
@@ -145,6 +147,7 @@ export async function PUT(req: Request, ctx: Ctx) {
     updatedAt: body.updatedAt?.trim() || publishedAt,
     related,
     createdAt: createdAtPersist,
+    lastSavedAt: prior.lastSavedAt,
   };
 
   const featuredNext =
@@ -285,6 +288,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     featured: prior.featured,
     createdAt: prior.createdAt ?? prior.publishedAt,
     thumbnailUrl: prior.thumbnailUrl,
+    lastSavedAt: prior.lastSavedAt,
   };
   if (body.published === false) {
     nextFm.published = false;

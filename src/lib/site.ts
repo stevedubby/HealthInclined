@@ -3,6 +3,8 @@ export const SITE = {
   domain: "healthinclined.com",
   baseUrl: "https://healthinclined.com",
   tagline: "Simple health education about everyday body symptoms.",
+  /** Short line for the site footer. */
+  footerTagline: "Simple, research-based explanations for everyday health symptoms.",
   // Keep messaging calm and non-diagnostic.
   trustLine:
     "Healthinclined shares practical, everyday education. It’s not medical diagnosis.",
