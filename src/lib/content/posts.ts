@@ -7,12 +7,13 @@ import {
   dbGetFeaturedPublicPost,
   dbGetLatestPublicPosts,
   dbGetPostBySlug,
+  dbGetPublishedPostByLegacySlug,
   dbGetPublishedCountByCategory,
   dbSearchPublicPosts,
   dbUpsertPost,
   isDatabaseEnabled,
 } from "@/lib/db-content";
-import { getReadContentRoots } from "@/lib/content-paths";
+import { getReadContentRoots, getWritableContentRoot } from "@/lib/content-paths";
 
 export type VideoSpec = {
   platform: "youtube" | "tiktok";
@@ -56,6 +57,8 @@ export type Post = PostFrontmatter & {
   views?: number;
   /** Like count (database-backed; omit or 0 when file-only / new draft). */
   likes?: number;
+  /** Previous public slugs (database); used for redirects after rename. */
+  slugHistory?: string[];
 };
 
 function readPostFile(filePath: string): { frontmatter: PostFrontmatter; content: string } {
@@ -163,8 +166,10 @@ export async function getPostBySlugAsync(slug: string): Promise<Post | null> {
   if (isDatabaseEnabled()) {
     try {
       const post = await dbGetPostBySlug(slug);
-      if (!post || post.published === false) return null;
-      return post;
+      if (post && post.published !== false) return post;
+      const legacy = await dbGetPublishedPostByLegacySlug(slug);
+      if (legacy) return legacy;
+      return null;
     } catch {
       const post = loadPostFromDisk(slug);
       if (!post || post.published === false) return null;
@@ -192,10 +197,32 @@ export async function getPostsByCategoryAsync(categorySlug: string): Promise<Pos
   return posts.filter((p) => p.category === categorySlug);
 }
 
-export async function upsertPostAsync(post: Post): Promise<void> {
+export async function upsertPostAsync(
+  post: Post,
+  options?: { previousSlug?: string },
+): Promise<void> {
   if (isDatabaseEnabled()) {
     await dbUpsertPost(post);
     return;
+  }
+  const prev = options?.previousSlug?.trim();
+  if (prev && prev !== post.slug) {
+    for (const root of getReadContentRoots()) {
+      const oldPath = path.join(root, "blog", `${prev}.md`);
+      if (fs.existsSync(oldPath)) {
+        try {
+          fs.unlinkSync(oldPath);
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+    try {
+      const writable = path.join(getWritableContentRoot(), "blog", `${prev}.md`);
+      if (fs.existsSync(writable)) fs.unlinkSync(writable);
+    } catch {
+      /* ignore */
+    }
   }
   // file fallback for local mode
   const matterPayload = {

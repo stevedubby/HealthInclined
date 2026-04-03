@@ -10,7 +10,11 @@ import {
 import type { Post } from "@/lib/content/posts";
 import { getPersistenceErrorMessage, hasPersistentContentStore } from "@/lib/content-paths";
 import { getCategoriesAsync } from "@/lib/categories";
-import { EMPTY_TIPTAP_DOC_JSON, isTiptapJsonContent } from "@/lib/tiptap-article";
+import {
+  draftPlainTextMeetsAutosaveThreshold,
+  EMPTY_TIPTAP_DOC_JSON,
+  isTiptapJsonContent,
+} from "@/lib/tiptap-article";
 
 type DraftBody = {
   slug?: string;
@@ -108,6 +112,13 @@ export async function POST(req: Request) {
     slug = want;
   } else {
     slug = await allocateDraftSlug();
+  }
+
+  if (!draftPlainTextMeetsAutosaveThreshold(content)) {
+    return NextResponse.json(
+      { error: "Add at least 25 characters in the article body to create a server draft." },
+      { status: 400 },
+    );
   }
 
   const post: Post = {

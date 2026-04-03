@@ -58,7 +58,8 @@ async function ensureInit(): Promise<void> {
           featured BOOLEAN NOT NULL DEFAULT FALSE,
           created_at TEXT,
           thumbnail_url TEXT,
-          last_saved_at TEXT
+          last_saved_at TEXT,
+          slug_history JSONB NOT NULL DEFAULT '[]'::jsonb
         );
       `);
       await p.query(`
@@ -78,6 +79,9 @@ async function ensureInit(): Promise<void> {
       `);
       await p.query(`
         ALTER TABLE posts ADD COLUMN IF NOT EXISTS last_saved_at TEXT;
+      `);
+      await p.query(`
+        ALTER TABLE posts ADD COLUMN IF NOT EXISTS slug_history JSONB NOT NULL DEFAULT '[]'::jsonb;
       `);
       await p.query(`
         UPDATE posts SET created_at = published_at WHERE created_at IS NULL OR created_at = '';
@@ -123,6 +127,7 @@ function mapPost(row: {
   created_at?: string | null;
   thumbnail_url?: string | null;
   last_saved_at?: string | null;
+  slug_history?: unknown;
 }): Post {
   const keywords =
     typeof row.keywords === "string" ? (JSON.parse(row.keywords) as string[]) : row.keywords;
@@ -156,12 +161,24 @@ function mapPost(row: {
   };
   const views = Number(row.views ?? 0);
   const likes = Number(row.likes ?? 0);
+  let slugHistory: string[] | undefined;
+  if (row.slug_history != null) {
+    const raw =
+      typeof row.slug_history === "string"
+        ? (JSON.parse(row.slug_history) as unknown)
+        : row.slug_history;
+    if (Array.isArray(raw)) {
+      const list = raw.map((x) => String(x)).filter(Boolean);
+      if (list.length) slugHistory = list;
+    }
+  }
   return {
     slug: row.slug,
     content: row.content,
     ...frontmatter,
     views: Number.isFinite(views) ? views : 0,
     likes: Number.isFinite(likes) ? likes : 0,
+    slugHistory,
   };
 }
 
@@ -214,6 +231,69 @@ export async function dbGetPostBySlug(slug: string): Promise<Post | null> {
   return mapPost(result.rows[0]);
 }
 
+/** Published post whose `slug_history` contains `legacySlug` (not the current slug). */
+export async function dbGetPublishedPostByLegacySlug(legacySlug: string): Promise<Post | null> {
+  const p = getPool();
+  if (!p) return null;
+  await ensureInit();
+  const result = await p.query(
+    `SELECT * FROM posts
+     WHERE published = TRUE
+       AND slug <> $1
+       AND EXISTS (
+         SELECT 1
+         FROM jsonb_array_elements_text(COALESCE(slug_history, '[]'::jsonb)) AS h
+         WHERE h = $1
+       )
+     LIMIT 1`,
+    [legacySlug],
+  );
+  if (!result.rows[0]) return null;
+  return mapPost(result.rows[0]);
+}
+
+/** Rename primary key `slug`; optionally append old slug to `slug_history` (published SEO redirects). */
+export async function dbRenamePostSlug(
+  oldSlug: string,
+  newSlug: string,
+  recordHistory: boolean,
+): Promise<void> {
+  const pool = getPool();
+  if (!pool) throw new Error("Database unavailable");
+  await ensureInit();
+  const dup = await pool.query("SELECT 1 FROM posts WHERE slug = $1 LIMIT 1", [newSlug]);
+  if (dup.rows.length > 0) {
+    throw new Error("SLUG_IN_USE");
+  }
+  const r = await pool.query(
+    `UPDATE posts SET
+      slug = $2,
+      slug_history = CASE
+        WHEN $3::boolean THEN COALESCE(slug_history, '[]'::jsonb) || jsonb_build_array($1::text)
+        ELSE COALESCE(slug_history, '[]'::jsonb)
+      END
+    WHERE slug = $1`,
+    [oldSlug, newSlug, recordHistory],
+  );
+  if ((r.rowCount ?? 0) === 0) {
+    throw new Error("Post not found for slug rename");
+  }
+}
+
+/** Draft-only slug change (no history). */
+export async function dbRenameDraftSlugOnly(oldSlug: string, newSlug: string): Promise<boolean> {
+  const p = getPool();
+  if (!p) return false;
+  await ensureInit();
+  const dup = await p.query("SELECT 1 FROM posts WHERE slug = $1 LIMIT 1", [newSlug]);
+  if (dup.rows.length > 0) return false;
+  const r = await p.query(
+    `UPDATE posts SET slug = $2 WHERE slug = $1 AND published = FALSE`,
+    [oldSlug, newSlug],
+  );
+  return (r.rowCount ?? 0) > 0;
+}
+
 export async function dbUpsertPost(post: Post): Promise<void> {
   const pool = getPool();
   if (!pool) return;
@@ -240,9 +320,9 @@ export async function dbUpsertPost(post: Post): Promise<void> {
       `INSERT INTO posts (
         slug, title, description, category, main_keyword, keywords, published_at, updated_at,
         published, seo_title, video_platform, video_id, video_title, related, content, views, likes,
-        featured, created_at, thumbnail_url, last_saved_at
+        featured, created_at, thumbnail_url, last_saved_at, slug_history
       ) VALUES (
-        $1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15,0,0,$16,$17,$18,$19
+        $1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15,0,0,$16,$17,$18,$19,'[]'::jsonb
       )
       ON CONFLICT (slug) DO UPDATE SET
         title = EXCLUDED.title,
@@ -264,7 +344,8 @@ export async function dbUpsertPost(post: Post): Promise<void> {
         featured = EXCLUDED.featured,
         created_at = COALESCE(NULLIF(TRIM(posts.created_at::text), ''), EXCLUDED.created_at),
         thumbnail_url = EXCLUDED.thumbnail_url,
-        last_saved_at = COALESCE(EXCLUDED.last_saved_at, posts.last_saved_at)`,
+        last_saved_at = COALESCE(EXCLUDED.last_saved_at, posts.last_saved_at),
+        slug_history = posts.slug_history`,
       [
         post.slug,
         post.title,

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { dbAdjustPostLike, isDatabaseEnabled } from "@/lib/db-content";
 import { isValidSlug } from "@/lib/admin-posts";
+import { getPostBySlugAsync } from "@/lib/content/posts";
 
 type Ctx = { params: Promise<{ slug: string }> };
 
@@ -30,11 +31,15 @@ export async function POST(req: Request, ctx: Ctx) {
   const delta: 1 | -1 = body.like ? 1 : -1;
 
   try {
-    const likes = await dbAdjustPostLike(slug, delta);
+    const post = await getPostBySlugAsync(slug);
+    if (!post) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    const likes = await dbAdjustPostLike(post.slug, delta);
     if (likes === null) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
-    return NextResponse.json({ ok: true, likes });
+    return NextResponse.json({ ok: true, likes, slug: post.slug });
   } catch {
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }

@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/admin-api";
 import { isValidSlug } from "@/lib/admin-posts";
-import { dbGetPostBySlug, dbPatchDraftAutosave, isDatabaseEnabled } from "@/lib/db-content";
+import {
+  dbGetPostBySlug,
+  dbPatchDraftAutosave,
+  dbRenameDraftSlugOnly,
+  isDatabaseEnabled,
+} from "@/lib/db-content";
 import { getPersistenceErrorMessage, hasPersistentContentStore } from "@/lib/content-paths";
 import { getCategoriesAsync } from "@/lib/categories";
 import { EMPTY_TIPTAP_DOC_JSON, isTiptapJsonContent } from "@/lib/tiptap-article";
@@ -11,6 +16,8 @@ type DraftPatchBody = {
   body?: string;
   category?: string;
   thumbnailUrl?: string;
+  /** Intended slug (draft rename). */
+  slug?: string;
 };
 
 type Ctx = { params: Promise<{ slug: string }> };
@@ -75,10 +82,26 @@ export async function PUT(req: Request, ctx: Ctx) {
       ? String(body.thumbnailUrl).trim()
       : prior.thumbnailUrl?.trim() ?? "";
 
+  let effectiveSlug = slug;
+  const requested = String(body.slug ?? "").trim().toLowerCase();
+  if (requested && requested !== slug) {
+    if (!isValidSlug(requested)) {
+      return NextResponse.json({ error: "Invalid slug" }, { status: 400 });
+    }
+    const renamed = await dbRenameDraftSlugOnly(slug, requested);
+    if (!renamed) {
+      return NextResponse.json(
+        { error: "That slug is already in use or could not be renamed." },
+        { status: 409 },
+      );
+    }
+    effectiveSlug = requested;
+  }
+
   const now = new Date();
   const lastSavedAt = now.toISOString();
 
-  const ok = await dbPatchDraftAutosave(slug, {
+  const ok = await dbPatchDraftAutosave(effectiveSlug, {
     title,
     content,
     category,
@@ -92,7 +115,7 @@ export async function PUT(req: Request, ctx: Ctx) {
 
   return NextResponse.json({
     ok: true,
-    slug,
+    slug: effectiveSlug,
     status: "draft" as const,
     lastSavedAt,
   });

@@ -8,6 +8,7 @@ import {
   parseRelatedLines
 } from "@/lib/admin-posts";
 import { deletePostAsync, getPostBySlugAdminAsync, upsertPostAsync } from "@/lib/content/posts";
+import { dbRenamePostSlug, isDatabaseEnabled } from "@/lib/db-content";
 import { getCategoriesAsync } from "@/lib/categories";
 import { getPersistenceErrorMessage, hasPersistentContentStore } from "@/lib/content-paths";
 import { isValidArticleBody } from "@/lib/tiptap-article";
@@ -75,6 +76,8 @@ type UpdateBody = {
   featured?: boolean;
   createdAt?: string;
   thumbnailUrl?: string;
+  /** URL slug (may differ from route param when renaming). */
+  slug?: string;
 };
 
 export async function PUT(req: Request, ctx: Ctx) {
@@ -108,6 +111,14 @@ export async function PUT(req: Request, ctx: Ctx) {
   const category = String(body.category ?? "").trim();
   if (!(await getCategoriesAsync()).some((c) => c.slug === category)) {
     return NextResponse.json({ error: "Invalid category" }, { status: 400 });
+  }
+
+  const requestedSlug = String(body.slug ?? slug).trim().toLowerCase();
+  if (!isValidSlug(requestedSlug)) {
+    return NextResponse.json(
+      { error: "Invalid slug. Use lowercase letters, numbers, and hyphens only." },
+      { status: 400 },
+    );
   }
 
   const title = String(body.title ?? "").trim();
@@ -220,13 +231,37 @@ export async function PUT(req: Request, ctx: Ctx) {
     }
   }
 
+  let targetSlug = slug;
   try {
-    await upsertPostAsync({ slug, content: articleBody, ...frontmatter });
+    if (requestedSlug !== slug) {
+      const occupant = await getPostBySlugAdminAsync(requestedSlug);
+      if (occupant) {
+        return NextResponse.json({ error: "That slug is already in use." }, { status: 409 });
+      }
+      if (isDatabaseEnabled()) {
+        try {
+          await dbRenamePostSlug(slug, requestedSlug, prior.published !== false);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : "";
+          if (msg === "SLUG_IN_USE") {
+            return NextResponse.json({ error: "That slug is already in use." }, { status: 409 });
+          }
+          throw e;
+        }
+      }
+      targetSlug = requestedSlug;
+    }
+
+    await upsertPostAsync(
+      { slug: targetSlug, content: articleBody, ...frontmatter },
+      !isDatabaseEnabled() && requestedSlug !== slug ? { previousSlug: slug } : undefined,
+    );
     revalidatePath("/", "layout");
     revalidatePath("/");
     revalidatePath("/blog");
     revalidatePath("/videos");
     revalidatePath(`/blog/${slug}`);
+    revalidatePath(`/blog/${targetSlug}`);
     revalidatePath(`/category/${frontmatter.category}`);
     if (frontmatter.category !== priorCategory) {
       revalidatePath(`/category/${priorCategory}`);
@@ -238,7 +273,7 @@ export async function PUT(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, slug });
+  return NextResponse.json({ ok: true, slug: targetSlug });
 }
 
 /** Toggle visibility without re-sending the full article body. */

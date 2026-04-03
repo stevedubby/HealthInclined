@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Container from "@/components/Container";
 import ArticleContent from "@/components/ArticleContent";
 import {
@@ -54,6 +54,9 @@ export default async function BlogPostPage({
   const { slug } = await params;
   const post = await getPostBySlugAsync(slug);
   if (!post) notFound();
+  if (slug !== post.slug) {
+    redirect(`/blog/${post.slug}`);
+  }
 
   const category = await getCategoryBySlugAsync(post.category);
 

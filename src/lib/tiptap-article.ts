@@ -97,3 +97,12 @@ export function isValidArticleBody(body: string): boolean {
   if (isTiptapJsonContent(body)) return !isTiptapDocEmpty(body);
   return false;
 }
+
+/** Minimum plain-text length in the article body before server draft autosave runs. */
+export const AUTOSAVE_MIN_BODY_PLAIN_CHARS = 25;
+
+export function draftPlainTextMeetsAutosaveThreshold(docJson: string): boolean {
+  return (
+    extractPlainTextFromTiptapDocString(docJson).trim().length >= AUTOSAVE_MIN_BODY_PLAIN_CHARS
+  );
+}

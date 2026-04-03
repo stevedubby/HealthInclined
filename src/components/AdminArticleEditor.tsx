@@ -10,11 +10,13 @@ import AdminRelatedArticlesPicker, {
 } from "@/components/AdminRelatedArticlesPicker";
 import TiptapArticleBodyEditor from "@/components/TiptapArticleBodyEditor";
 import {
+  draftPlainTextMeetsAutosaveThreshold,
   EMPTY_TIPTAP_DOC_JSON,
   isTiptapJsonContent,
   isValidArticleBody,
   markdownToTiptapJson,
 } from "@/lib/tiptap-article";
+import { SITE } from "@/lib/site";
 import { parseTikTokVideoId } from "@/lib/tiktok-id";
 import { parseYoutubeVideoId } from "@/lib/youtube-id";
 
@@ -77,6 +79,7 @@ export default function AdminArticleEditor({
   const [remoteDraftSlug, setRemoteDraftSlug] = useState<string | null>(() =>
     mode === "edit" && editSlug ? editSlug : null,
   );
+  const [autosaveUnlocked, setAutosaveUnlocked] = useState(false);
 
   const snapRef = useRef({
     title: "",
@@ -94,10 +97,12 @@ export default function AdminArticleEditor({
   const inFlightRef = useRef(false);
   const hydratedNewRef = useRef(false);
   const flushAutosaveRef = useRef<() => Promise<void>>(async () => {});
+  const autosaveUnlockedRef = useRef(false);
 
   slugRef.current = slug;
   snapRef.current = { title, body, category, thumbnailUrl };
   ctxRef.current = { mode, editSlug: editSlug ?? null, remoteDraftSlug, published };
+  autosaveUnlockedRef.current = autosaveUnlocked;
 
   const metaTitle = useMemo(() => effectiveMetaTitle(seoTitle, title), [seoTitle, title]);
   const metaTitleLen = metaTitle.length;
@@ -108,8 +113,17 @@ export default function AdminArticleEditor({
   const metaHasKeyword =
     keywordLower.length > 0 && metaTitle.toLowerCase().includes(keywordLower);
 
+  useEffect(() => {
+    if (draftPlainTextMeetsAutosaveThreshold(body)) {
+      setAutosaveUnlocked(true);
+    }
+  }, [body]);
+
   const autosaveLine = useMemo(() => {
     if (published) return "";
+    if (!autosaveUnlocked) {
+      return "Start writing to enable autosave (about 25 characters in the article body).";
+    }
     if (autosaveState === "saving") return "Saving…";
     if (autosaveState === "local") {
       return lastAutosaveAt
@@ -126,7 +140,7 @@ export default function AdminArticleEditor({
       return `Last saved · ${new Date(lastAutosaveAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" })}`;
     }
     return "Autosave runs about every 12 seconds and after you pause typing.";
-  }, [published, autosaveState, lastAutosaveAt]);
+  }, [published, autosaveUnlocked, autosaveState, lastAutosaveAt]);
 
   useEffect(() => {
     if (categories.some((c) => c.slug === category)) return;
@@ -164,7 +178,14 @@ export default function AdminArticleEditor({
       const ctx = ctxRef.current;
       if (ctx.published) return;
       const snap = snapRef.current;
+      if (
+        !autosaveUnlockedRef.current &&
+        !draftPlainTextMeetsAutosaveThreshold(snap.body)
+      ) {
+        return;
+      }
       const wasNew = ctx.mode === "new";
+      const prevEditSlug = ctx.editSlug;
       inFlightRef.current = true;
       setAutosaveState("saving");
       const payload = {
@@ -172,6 +193,7 @@ export default function AdminArticleEditor({
         body: snap.body,
         category: snap.category,
         thumbnailUrl: snap.thumbnailUrl.trim(),
+        slug: slugRef.current.trim().toLowerCase(),
       };
       try {
         const slugForPut = ctx.mode === "edit" ? ctx.editSlug : ctx.remoteDraftSlug;
@@ -219,6 +241,8 @@ export default function AdminArticleEditor({
         if (data.slug) {
           setRemoteDraftSlug(data.slug);
           if (wasNew) {
+            router.replace(`/admin/posts/${encodeURIComponent(data.slug)}/edit`);
+          } else if (!wasNew && prevEditSlug && data.slug !== prevEditSlug) {
             router.replace(`/admin/posts/${encodeURIComponent(data.slug)}/edit`);
           }
         }
@@ -286,7 +310,7 @@ export default function AdminArticleEditor({
       void flushAutosaveRef.current();
     }, 2500);
     return () => clearTimeout(id);
-  }, [title, body, category, thumbnailUrl, published]);
+  }, [title, body, category, thumbnailUrl, slug, published, autosaveUnlocked]);
 
   useEffect(() => {
     if (published) return;
@@ -294,7 +318,7 @@ export default function AdminArticleEditor({
       void flushAutosaveRef.current();
     }, 12000);
     return () => clearInterval(id);
-  }, [published]);
+  }, [published, autosaveUnlocked]);
 
   useEffect(() => {
     if (mode !== "edit" || !editSlug) return;
@@ -424,7 +448,7 @@ export default function AdminArticleEditor({
     const wasLive = published;
     try {
       const payload: Record<string, unknown> = {
-        slug: mode === "new" ? slug.trim().toLowerCase() : editSlug,
+        slug: slug.trim().toLowerCase(),
         title,
         description,
         category,
@@ -467,6 +491,14 @@ export default function AdminArticleEditor({
       if (!res.ok) {
         setError(data.error ?? "Save failed");
         setSaving(false);
+        return;
+      }
+      if (mode === "edit" && data.slug && editSlug && data.slug !== editSlug) {
+        setSlug(data.slug);
+        setSuccess("Saved — article URL was updated.");
+        router.replace(`/admin/posts/${encodeURIComponent(data.slug)}/edit`);
+        setSaving(false);
+        setLastAutosaveAt(new Date().toISOString());
         return;
       }
       setLastAutosaveAt(new Date().toISOString());
@@ -521,9 +553,9 @@ export default function AdminArticleEditor({
         </div>
         <div className="flex flex-col items-stretch gap-1 sm:items-end">
           <div className="flex flex-wrap items-center justify-end gap-2">
-            {mode === "edit" && editSlug && published ? (
+            {mode === "edit" && (slug.trim().toLowerCase() || editSlug) && published ? (
               <Link
-                href={`/blog/${editSlug}`}
+                href={`/blog/${slug.trim().toLowerCase() || editSlug}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="rounded-xl border border-zinc-300 px-4 py-2.5 text-sm font-semibold text-zinc-800 transition hover:border-emerald-500/40 hover:text-emerald-700 dark:border-zinc-600 dark:text-zinc-200 dark:hover:text-emerald-300"
@@ -566,18 +598,6 @@ export default function AdminArticleEditor({
             <h2 className={sectionTitle}>Basics</h2>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <label className={`${labelClass} sm:col-span-2`}>
-                URL slug
-                <input
-                  value={slug}
-                  onChange={(ev) => setSlug(ev.target.value)}
-                  disabled={mode === "edit"}
-                  className={`${inputClass} font-mono disabled:opacity-50`}
-                  placeholder="my-article-slug"
-                  required
-                />
-              </label>
-
-              <label className={`${labelClass} sm:col-span-2`}>
                 Title <span className="font-normal normal-case text-zinc-400 dark:text-zinc-600">(on-page H1)</span>
                 <input
                   value={title}
@@ -585,6 +605,23 @@ export default function AdminArticleEditor({
                   className={inputClass}
                   required
                 />
+              </label>
+
+              <label className={`${labelClass} sm:col-span-2`}>
+                URL slug
+                <input
+                  value={slug}
+                  onChange={(ev) => setSlug(ev.target.value)}
+                  className={`${inputClass} font-mono`}
+                  placeholder="my-article-slug"
+                  required
+                />
+                <p className="mt-1.5 text-xs leading-relaxed text-zinc-500 dark:text-zinc-500">
+                  You can edit this anytime. Old public links keep working via redirects.
+                </p>
+                <p className="mt-1 font-mono text-xs text-emerald-800 dark:text-emerald-400">
+                  {SITE.baseUrl}/blog/{slug.trim().toLowerCase() || "your-slug"}
+                </p>
               </label>
 
               <label className={`${labelClass} sm:col-span-2`}>
@@ -759,7 +796,7 @@ export default function AdminArticleEditor({
             </p>
             <AdminRelatedArticlesPicker
               allArticles={allArticles}
-              excludeSlug={mode === "edit" && editSlug ? editSlug : slug.trim().toLowerCase()}
+              excludeSlug={slug.trim().toLowerCase() || editSlug || ""}
               value={relatedLinks}
               onChange={setRelatedLinks}
             />
