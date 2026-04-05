@@ -33,7 +33,10 @@ function normalizeBodyJson(raw: string | undefined): string {
 
 export async function PUT(req: Request, ctx: Ctx) {
   if (!hasPersistentContentStore()) {
-    return NextResponse.json({ error: getPersistenceErrorMessage() }, { status: 503 });
+    return NextResponse.json(
+      { error: getPersistenceErrorMessage(), code: "NO_PERSISTENT_STORE" },
+      { status: 503 },
+    );
   }
   if (!isDatabaseEnabled()) {
     return NextResponse.json(

@@ -1,12 +1,13 @@
 import { Pool } from "pg";
 import type { Category } from "@/lib/categories";
 import type { Post, PostFrontmatter } from "@/lib/content/posts";
+import { getDatabaseConnectionString } from "@/lib/env-database";
 
 let pool: Pool | null = null;
 let initPromise: Promise<void> | null = null;
 
 function getPool(): Pool | null {
-  const url = process.env.DATABASE_URL?.trim();
+  const url = getDatabaseConnectionString();
   if (!url) return null;
   if (!pool) {
     pool = new Pool({
@@ -20,7 +21,7 @@ function getPool(): Pool | null {
 }
 
 export function isDatabaseEnabled(): boolean {
-  return Boolean(process.env.DATABASE_URL?.trim());
+  return Boolean(getDatabaseConnectionString());
 }
 
 async function ensureInit(): Promise<void> {

@@ -1,4 +1,5 @@
 import path from "node:path";
+import { isDatabaseConfigured } from "@/lib/env-database";
 
 function normalizeDir(input: string): string {
   return input.replace(/[\\/]+$/, "");
@@ -27,7 +28,7 @@ export function getReadContentRoots(): string[] {
 }
 
 export function hasPersistentContentStore(): boolean {
-  if (process.env.DATABASE_URL?.trim()) return true;
+  if (isDatabaseConfigured()) return true;
   if (!process.env.VERCEL) return true;
   return Boolean(process.env.CONTENT_DATA_DIR?.trim());
 }

@@ -45,7 +45,10 @@ async function allocateDraftSlug(): Promise<string> {
 
 export async function POST(req: Request) {
   if (!hasPersistentContentStore()) {
-    return NextResponse.json({ error: getPersistenceErrorMessage() }, { status: 503 });
+    return NextResponse.json(
+      { error: getPersistenceErrorMessage(), code: "NO_PERSISTENT_STORE" },
+      { status: 503 },
+    );
   }
   if (!isDatabaseEnabled()) {
     return NextResponse.json(

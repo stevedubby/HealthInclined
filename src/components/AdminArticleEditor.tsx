@@ -29,6 +29,16 @@ function sortedCategoryKey(slugs: string[]) {
   return JSON.stringify([...slugs].slice().sort());
 }
 
+/** Compare localStorage vs server timestamps (date-only YYYY-MM-DD → end of UTC day). */
+function editorSavedAtMs(iso: string | null | undefined): number {
+  const t = String(iso ?? "").trim();
+  if (!t) return 0;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) {
+    return Date.parse(`${t}T23:59:59.999Z`) || 0;
+  }
+  return Date.parse(t) || 0;
+}
+
 const AUTOSAVE_LS_PREFIX = "healthinclined-editor-autosave:v1";
 
 function autosaveStorageKey(slug: string | null) {
@@ -84,6 +94,9 @@ export default function AdminArticleEditor({
     mode === "edit" && editSlug ? editSlug : null,
   );
   const [autosaveUnlocked, setAutosaveUnlocked] = useState(false);
+  /** Set when draft API returns 503 so we show an accurate message (not “no DB” for browser-cache cases). */
+  const [draftSyncBlockedCode, setDraftSyncBlockedCode] = useState<string | null>(null);
+  const shouldFlushAfterBrowserMergeRef = useRef(false);
 
   const snapRef = useRef({
     title: "",
@@ -137,9 +150,15 @@ export default function AdminArticleEditor({
     }
     if (autosaveState === "saving") return "Saving…";
     if (autosaveState === "local") {
+      const hint =
+        draftSyncBlockedCode === "NO_DATABASE"
+          ? "Add DATABASE_URL, POSTGRES_URL, or SUPABASE_DATABASE_URL to the server environment, then redeploy."
+          : draftSyncBlockedCode === "NO_PERSISTENT_STORE"
+            ? "Hosted runtime needs a database connection string or CONTENT_DATA_DIR for writes."
+            : "Server could not save this draft.";
       return lastAutosaveAt
-        ? `Saved in this browser · ${new Date(lastAutosaveAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} — connect a database to sync drafts to the server.`
-        : "Saved in this browser only — connect a database to sync drafts to the server.";
+        ? `Saved in this browser · ${new Date(lastAutosaveAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} — ${hint}`
+        : `Saved in this browser only — ${hint}`;
     }
     if (autosaveState === "error") {
       return "Autosave failed — your work stays in this browser until you use Save or Publish.";
@@ -151,7 +170,7 @@ export default function AdminArticleEditor({
       return `Last saved · ${new Date(lastAutosaveAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" })}`;
     }
     return "Autosave runs about every 15 seconds and ~3s after you pause typing.";
-  }, [published, autosaveUnlocked, autosaveState, lastAutosaveAt]);
+  }, [published, autosaveUnlocked, autosaveState, lastAutosaveAt, draftSyncBlockedCode]);
 
   useEffect(() => {
     setSelectedCategories((prev) => {
@@ -263,6 +282,8 @@ export default function AdminArticleEditor({
         };
         if (!res.ok) {
           if (res.status === 503) {
+            const code = typeof data.code === "string" ? data.code : null;
+            setDraftSyncBlockedCode(code ?? "UNAVAILABLE");
             startTransition(() => setAutosaveState("local"));
             setLastAutosaveAt(new Date().toISOString());
           } else {
@@ -270,6 +291,7 @@ export default function AdminArticleEditor({
           }
           return;
         }
+        setDraftSyncBlockedCode(null);
         if (data.lastSavedAt) {
           setLastAutosaveAt(data.lastSavedAt);
           setLastServerSavedAt(data.lastSavedAt);
@@ -309,7 +331,7 @@ export default function AdminArticleEditor({
         categories?: string[];
         thumbnailUrl?: string;
       };
-      if (!d.savedAt || new Date(d.savedAt) <= new Date(lastServerSavedAt)) return;
+      if (!d.savedAt || editorSavedAtMs(d.savedAt) <= editorSavedAtMs(lastServerSavedAt)) return;
       if (d.title) setTitle(d.title);
       if (Array.isArray(d.categories) && d.categories.length) {
         const v = d.categories.filter((s) => categories.some((c) => c.slug === s));
@@ -322,11 +344,24 @@ export default function AdminArticleEditor({
         setBody(d.body);
         setEditorMountKey((k) => k + 1);
       }
-      setAutosaveState("local");
+      shouldFlushAfterBrowserMergeRef.current = true;
     } catch {
       /* ignore */
     }
   }, [mode, editSlug, loading, published, lastServerSavedAt, categories]);
+
+  useEffect(() => {
+    if (!shouldFlushAfterBrowserMergeRef.current) return;
+    if (published) {
+      shouldFlushAfterBrowserMergeRef.current = false;
+      return;
+    }
+    const canFlush =
+      autosaveUnlocked || draftPlainTextMeetsAutosaveThreshold(body);
+    if (!canFlush) return;
+    shouldFlushAfterBrowserMergeRef.current = false;
+    void flushAutosaveRef.current();
+  }, [title, body, selectedCategories, thumbnailUrl, slug, published, autosaveUnlocked]);
 
   useEffect(() => {
     if (published) return;
@@ -403,7 +438,12 @@ export default function AdminArticleEditor({
         }
         if (cancelled || !data.frontmatter) return;
         const fm = data.frontmatter;
-        setLastServerSavedAt(fm.lastSavedAt?.trim() || fm.createdAt?.trim() || fm.publishedAt || null);
+        const serverSyncWatermark =
+          fm.lastSavedAt?.trim() ||
+          (fm.updatedAt?.trim().includes("T") ? fm.updatedAt.trim() : "") ||
+          fm.createdAt?.trim() ||
+          null;
+        setLastServerSavedAt(serverSyncWatermark);
         setLastAutosaveAt(fm.lastSavedAt?.trim() || null);
         setRemoteDraftSlug(editSlug);
         setSlug(editSlug);
