@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdminSession } from "@/lib/admin-api";
 import { isValidSlug } from "@/lib/admin-posts";
 import { getCategoriesAsync, saveCategoriesAsync, type Category } from "@/lib/categories";
-import { getAllPostsAdminAsync } from "@/lib/content/posts";
+import { getAllPostsAdminAsync, getPostCategorySlugs } from "@/lib/content/posts";
 import { getPersistenceErrorMessage, hasPersistentContentStore } from "@/lib/content-paths";
 
 export const dynamic = "force-dynamic";
@@ -92,7 +92,7 @@ export async function DELETE(_req: Request, ctx: Ctx) {
   }
 
   const posts = await getAllPostsAdminAsync();
-  if (posts.some((p) => p.category === slug)) {
+  if (posts.some((p) => getPostCategorySlugs(p).includes(slug))) {
     return NextResponse.json(
       { error: "Cannot delete: one or more articles use this category. Reassign them first." },
       { status: 409 },

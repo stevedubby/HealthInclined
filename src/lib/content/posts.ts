@@ -29,7 +29,10 @@ export type RelatedLink = {
 export type PostFrontmatter = {
   title: string;
   description: string;
+  /** Primary category slug (first in `categories`; kept for backward compatibility). */
   category: string;
+  /** All category slugs for this article (non-empty when loaded from DB or normalized). */
+  categories?: string[];
   mainKeyword: string;
   keywords: string[];
   publishedAt: string;
@@ -53,6 +56,8 @@ export type PostFrontmatter = {
 export type Post = PostFrontmatter & {
   slug: string;
   content: string;
+  /** Normalized category slugs (at least one when the article is valid). */
+  categories: string[];
   /** Page views (database-backed; omit or 0 when file-only / new draft). */
   views?: number;
   /** Like count (database-backed; omit or 0 when file-only / new draft). */
@@ -60,6 +65,24 @@ export type Post = PostFrontmatter & {
   /** Previous public slugs (database); used for redirects after rename. */
   slugHistory?: string[];
 };
+
+/** Build category slug list from frontmatter (`categories` array or legacy `category`). */
+export function normalizeArticleCategories(
+  categories: unknown,
+  category: string | undefined,
+): string[] {
+  if (Array.isArray(categories)) {
+    const list = categories.map((x) => String(x).trim()).filter(Boolean);
+    if (list.length) return list;
+  }
+  const c = category?.trim();
+  return c ? [c] : [];
+}
+
+export function getPostCategorySlugs(post: Post): string[] {
+  if (post.categories?.length) return post.categories;
+  return post.category ? [post.category] : [];
+}
 
 function readPostFile(filePath: string): { frontmatter: PostFrontmatter; content: string } {
   const raw = fs.readFileSync(filePath, "utf8");
@@ -87,10 +110,14 @@ function loadPostFromDisk(slug: string): Post | null {
     const filePath = path.join(root, "blog", `${slug}.md`);
     if (!fs.existsSync(filePath)) continue;
     const { frontmatter, content } = readPostFile(filePath);
+    const categories = normalizeArticleCategories(frontmatter.categories, frontmatter.category);
+    const primary = categories[0] ?? frontmatter.category?.trim() ?? "";
     return {
       slug,
       content,
       ...frontmatter,
+      category: primary,
+      categories: categories.length ? categories : primary ? [primary] : [],
       featured: frontmatter.featured === true ? true : undefined,
       createdAt: frontmatter.createdAt?.trim() || frontmatter.publishedAt,
       thumbnailUrl: frontmatter.thumbnailUrl?.trim() || undefined,
@@ -194,7 +221,7 @@ export async function getPostBySlugAdminAsync(slug: string): Promise<Post | null
 
 export async function getPostsByCategoryAsync(categorySlug: string): Promise<Post[]> {
   const posts = await getAllPostsAsync();
-  return posts.filter((p) => p.category === categorySlug);
+  return posts.filter((p) => getPostCategorySlugs(p).includes(categorySlug));
 }
 
 export async function upsertPostAsync(
@@ -225,10 +252,12 @@ export async function upsertPostAsync(
     }
   }
   // file fallback for local mode
+  const cats = post.categories?.length ? post.categories : post.category ? [post.category] : [];
   const matterPayload = {
     title: post.title,
     description: post.description,
-    category: post.category,
+    category: post.category || cats[0] || "",
+    categories: cats.length ? cats : undefined,
     mainKeyword: post.mainKeyword,
     keywords: post.keywords,
     publishedAt: post.publishedAt,
@@ -328,7 +357,9 @@ export async function getPublishedArticleCountsByCategoryAsync(): Promise<Record
   const counts: Record<string, number> = {};
   for (const p of loadAllPostsFromDisk()) {
     if (p.published === false) continue;
-    counts[p.category] = (counts[p.category] ?? 0) + 1;
+    for (const c of getPostCategorySlugs(p)) {
+      counts[c] = (counts[c] ?? 0) + 1;
+    }
   }
   return counts;
 }

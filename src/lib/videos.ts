@@ -1,4 +1,4 @@
-import { getAllPostsAsync, type VideoSpec } from "@/lib/content/posts";
+import { getAllPostsAsync, getPostCategorySlugs, type VideoSpec } from "@/lib/content/posts";
 
 export type SiteVideo = {
   key: string; // stable unique key for React keys
@@ -39,7 +39,7 @@ export async function getAllEmbeddedVideosAsync(): Promise<SiteVideo[]> {
       title: p.video!.title ?? p.title,
       platform: p.video!.platform,
       id: p.video!.id,
-      categorySlug: p.category,
+      categorySlug: getPostCategorySlugs(p)[0],
       postSlug: p.slug,
       source: "post" as const,
     }));

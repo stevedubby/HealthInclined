@@ -6,8 +6,9 @@ import { getAllPostsAdminAsync, upsertPostAsync } from "@/lib/content/posts";
 import { getPersistenceErrorMessage, hasPersistentContentStore } from "@/lib/content-paths";
 import {
   isValidSlug,
+  parseAdminArticleCategories,
   parseKeywords,
-  parseRelatedLines
+  parseRelatedLines,
 } from "@/lib/admin-posts";
 import { getCategoriesAsync } from "@/lib/categories";
 import { isValidArticleBody } from "@/lib/tiptap-article";
@@ -36,7 +37,8 @@ type CreateBody = {
   slug: string;
   title: string;
   description: string;
-  category: string;
+  category?: string;
+  categories?: string[];
   mainKeyword: string;
   keywordsText: string;
   publishedAt: string;
@@ -81,10 +83,13 @@ export async function POST(req: Request) {
     );
   }
 
-  const category = String(body.category ?? "").trim();
-  if (!(await getCategoriesAsync()).some((c) => c.slug === category)) {
-    return NextResponse.json({ error: "Invalid category" }, { status: 400 });
+  const catalog = await getCategoriesAsync();
+  const catParsed = parseAdminArticleCategories(body, catalog);
+  if (!catParsed.ok) {
+    return NextResponse.json({ error: catParsed.error }, { status: 400 });
   }
+  const categorySlugs = catParsed.slugs;
+  const category = categorySlugs[0];
 
   const title = String(body.title ?? "").trim();
   const description = String(body.description ?? "").trim();
@@ -111,6 +116,7 @@ export async function POST(req: Request) {
     title,
     description,
     category,
+    categories: categorySlugs,
     mainKeyword,
     keywords: keywords.length ? keywords : [mainKeyword],
     publishedAt,
@@ -182,13 +188,21 @@ export async function POST(req: Request) {
   }
 
   try {
-    await upsertPostAsync({ slug, content: articleBody, ...frontmatter });
+    await upsertPostAsync({
+      slug,
+      content: articleBody,
+      ...frontmatter,
+      category,
+      categories: categorySlugs,
+    });
     revalidatePath("/", "layout");
     revalidatePath("/");
     revalidatePath("/blog");
     revalidatePath("/videos");
     revalidatePath(`/blog/${slug}`);
-    revalidatePath(`/category/${frontmatter.category}`);
+    for (const c of categorySlugs) {
+      revalidatePath(`/category/${c}`);
+    }
     revalidatePath("/admin");
     revalidatePath("/sitemap.xml");
   } catch (e) {

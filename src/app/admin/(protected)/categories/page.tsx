@@ -1,6 +1,6 @@
 import AdminCategoriesManager from "@/components/AdminCategoriesManager";
 import { getCategoriesAsync } from "@/lib/categories";
-import { getAllPostsAdminAsync } from "@/lib/content/posts";
+import { getAllPostsAdminAsync, getPostCategorySlugs } from "@/lib/content/posts";
 
 export default async function AdminCategoriesPage() {
   const categories = await getCategoriesAsync();
@@ -11,10 +11,12 @@ export default async function AdminCategoriesPage() {
     postCounts[c.slug] = { total: 0, live: 0 };
   }
   for (const p of posts) {
-    const cur = postCounts[p.category];
-    if (cur) {
-      cur.total += 1;
-      if (p.published !== false) cur.live += 1;
+    for (const slug of getPostCategorySlugs(p)) {
+      const cur = postCounts[slug];
+      if (cur) {
+        cur.total += 1;
+        if (p.published !== false) cur.live += 1;
+      }
     }
   }
 

@@ -1,8 +1,16 @@
 import Link from "next/link";
 import type { Post } from "@/lib/content/posts";
+import PostCategoryLinks from "@/components/PostCategoryLinks";
 import { resolvePostThumbnailUrl } from "@/lib/post-thumbnail";
 
-export default function PostCard({ post }: { post: Post }) {
+export default function PostCard({
+  post,
+  categoryNames,
+}: {
+  post: Post;
+  /** Optional map slug → display name from `getCategoriesAsync`. */
+  categoryNames?: Map<string, string>;
+}) {
   const date = new Date(post.publishedAt).toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
@@ -20,7 +28,7 @@ export default function PostCard({ post }: { post: Post }) {
       ) : null}
       <div className="flex flex-1 flex-col gap-3 p-4">
         <div className="flex items-center justify-between gap-3">
-          <span className="text-xs font-semibold text-emerald-700">{post.category}</span>
+          <PostCategoryLinks post={post} nameBySlug={categoryNames} />
           <time className="text-xs font-medium text-zinc-500 dark:text-zinc-400" dateTime={post.publishedAt}>
             {date}
           </time>

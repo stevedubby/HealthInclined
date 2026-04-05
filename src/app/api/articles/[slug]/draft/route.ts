@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/admin-api";
-import { isValidSlug } from "@/lib/admin-posts";
+import { isValidSlug, parseAdminArticleCategories } from "@/lib/admin-posts";
 import {
+  type DraftAutosavePatch,
   dbGetPostBySlug,
   dbPatchDraftAutosave,
   dbRenameDraftSlugOnly,
@@ -15,6 +16,7 @@ type DraftPatchBody = {
   title?: string;
   body?: string;
   category?: string;
+  categories?: string[];
   thumbnailUrl?: string;
   /** Intended slug (draft rename). */
   slug?: string;
@@ -69,18 +71,30 @@ export async function PUT(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const categories = await getCategoriesAsync();
-  const category = String(body.category ?? prior.category).trim();
-  if (!categories.some((c) => c.slug === category)) {
-    return NextResponse.json({ error: "Invalid category" }, { status: 400 });
+  const catalog = await getCategoriesAsync();
+  const now = new Date();
+  const lastSavedAt = now.toISOString();
+
+  const patch: DraftAutosavePatch = { lastSavedAt };
+
+  if (body.title !== undefined) {
+    const t = String(body.title).trim();
+    if (t) patch.title = t;
+  }
+  if (body.body !== undefined) {
+    patch.content = normalizeBodyJson(body.body);
+  }
+  if (body.thumbnailUrl !== undefined) {
+    patch.thumbnailUrl = String(body.thumbnailUrl).trim() || null;
   }
 
-  const title = String(body.title ?? prior.title).trim() || "Untitled draft";
-  const content = body.body !== undefined ? normalizeBodyJson(body.body) : prior.content;
-  const thumb =
-    body.thumbnailUrl !== undefined
-      ? String(body.thumbnailUrl).trim()
-      : prior.thumbnailUrl?.trim() ?? "";
+  if ("categories" in body || "category" in body) {
+    const parsed = parseAdminArticleCategories(body, catalog);
+    if (!parsed.ok) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
+    }
+    patch.categories = parsed.slugs;
+  }
 
   let effectiveSlug = slug;
   const requested = String(body.slug ?? "").trim().toLowerCase();
@@ -98,16 +112,7 @@ export async function PUT(req: Request, ctx: Ctx) {
     effectiveSlug = requested;
   }
 
-  const now = new Date();
-  const lastSavedAt = now.toISOString();
-
-  const ok = await dbPatchDraftAutosave(effectiveSlug, {
-    title,
-    content,
-    category,
-    thumbnailUrl: thumb || null,
-    lastSavedAt,
-  });
+  const ok = await dbPatchDraftAutosave(effectiveSlug, patch);
 
   if (!ok) {
     return NextResponse.json({ error: "Could not update draft" }, { status: 500 });

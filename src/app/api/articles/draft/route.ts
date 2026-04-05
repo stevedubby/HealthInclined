@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/admin-api";
-import { isValidSlug } from "@/lib/admin-posts";
+import { isValidSlug, parseAdminArticleCategories } from "@/lib/admin-posts";
 import {
+  type DraftAutosavePatch,
   dbGetPostBySlug,
   dbPatchDraftAutosave,
   dbUpsertPost,
@@ -21,6 +22,7 @@ type DraftBody = {
   title?: string;
   body?: string;
   category?: string;
+  categories?: string[];
   thumbnailUrl?: string;
 };
 
@@ -64,15 +66,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const categories = await getCategoriesAsync();
-  const category = String(body.category ?? "").trim();
-  if (!categories.some((c) => c.slug === category)) {
-    return NextResponse.json({ error: "Invalid category" }, { status: 400 });
-  }
-
-  const title = String(body.title ?? "").trim() || "Untitled draft";
-  const content = normalizeBodyJson(body.body);
-  const thumb = String(body.thumbnailUrl ?? "").trim();
+  const catalog = await getCategoriesAsync();
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
   const lastSavedAt = now.toISOString();
@@ -92,13 +86,26 @@ export async function POST(req: Request) {
       );
     }
     if (existing) {
-      const ok = await dbPatchDraftAutosave(want, {
-        title,
-        content,
-        category,
-        thumbnailUrl: thumb || null,
-        lastSavedAt,
-      });
+      const patch: DraftAutosavePatch = { lastSavedAt };
+      if (body.title !== undefined) {
+        const t = String(body.title).trim();
+        if (t) patch.title = t;
+      }
+      if (body.body !== undefined) {
+        patch.content = normalizeBodyJson(body.body);
+      }
+      if (body.thumbnailUrl !== undefined) {
+        patch.thumbnailUrl = String(body.thumbnailUrl).trim() || null;
+      }
+      if ("categories" in body || "category" in body) {
+        const parsed = parseAdminArticleCategories(body, catalog);
+        if (!parsed.ok) {
+          return NextResponse.json({ error: parsed.error }, { status: 400 });
+        }
+        patch.categories = parsed.slugs;
+      }
+
+      const ok = await dbPatchDraftAutosave(want, patch);
       if (!ok) {
         return NextResponse.json({ error: "Could not update draft" }, { status: 500 });
       }
@@ -114,6 +121,7 @@ export async function POST(req: Request) {
     slug = await allocateDraftSlug();
   }
 
+  const content = normalizeBodyJson(body.body);
   if (!draftPlainTextMeetsAutosaveThreshold(content)) {
     return NextResponse.json(
       { error: "Add at least 25 characters in the article body to create a server draft." },
@@ -121,11 +129,22 @@ export async function POST(req: Request) {
     );
   }
 
+  const parsedCats = parseAdminArticleCategories(body, catalog);
+  if (!parsedCats.ok) {
+    return NextResponse.json({ error: parsedCats.error }, { status: 400 });
+  }
+  const categorySlugs = parsedCats.slugs;
+
+  const titleRaw = String(body.title ?? "").trim();
+  const title = titleRaw || "Untitled draft";
+  const thumb = String(body.thumbnailUrl ?? "").trim();
+
   const post: Post = {
     slug,
     title,
     description: "Draft — add a meta description before publishing.",
-    category,
+    category: categorySlugs[0],
+    categories: categorySlugs,
     mainKeyword: "draft",
     keywords: ["draft"],
     publishedAt: today,

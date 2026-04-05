@@ -84,6 +84,13 @@ async function ensureInit(): Promise<void> {
         ALTER TABLE posts ADD COLUMN IF NOT EXISTS slug_history JSONB NOT NULL DEFAULT '[]'::jsonb;
       `);
       await p.query(`
+        ALTER TABLE posts ADD COLUMN IF NOT EXISTS categories JSONB;
+      `);
+      await p.query(`
+        UPDATE posts SET categories = jsonb_build_array(category)
+        WHERE categories IS NULL;
+      `);
+      await p.query(`
         UPDATE posts SET created_at = published_at WHERE created_at IS NULL OR created_at = '';
       `);
     })();
@@ -105,11 +112,27 @@ function mapCategory(row: {
   };
 }
 
+function parseCategoriesFromRow(
+  categories: unknown,
+  fallbackCategory: string,
+): string[] {
+  if (categories != null) {
+    const raw =
+      typeof categories === "string" ? (JSON.parse(categories) as unknown) : categories;
+    if (Array.isArray(raw)) {
+      const list = raw.map((x) => String(x).trim()).filter(Boolean);
+      if (list.length) return list;
+    }
+  }
+  return fallbackCategory.trim() ? [fallbackCategory.trim()] : [];
+}
+
 function mapPost(row: {
   slug: string;
   title: string;
   description: string;
   category: string;
+  categories?: unknown;
   main_keyword: string;
   keywords: string[] | string;
   published_at: string;
@@ -135,10 +158,13 @@ function mapPost(row: {
     typeof row.related === "string"
       ? (JSON.parse(row.related) as Array<{ slug: string; anchor: string }>)
       : row.related;
+  const categoriesList = parseCategoriesFromRow(row.categories, row.category);
+  const primaryCategory = categoriesList[0] ?? row.category;
   const frontmatter: PostFrontmatter = {
     title: row.title,
     description: row.description,
-    category: row.category,
+    category: primaryCategory,
+    categories: categoriesList,
     mainKeyword: row.main_keyword,
     keywords,
     publishedAt: row.published_at,
@@ -176,6 +202,7 @@ function mapPost(row: {
     slug: row.slug,
     content: row.content,
     ...frontmatter,
+    categories: categoriesList.length ? categoriesList : row.category ? [row.category] : [],
     views: Number.isFinite(views) ? views : 0,
     likes: Number.isFinite(likes) ? likes : 0,
     slugHistory,
@@ -316,18 +343,24 @@ export async function dbUpsertPost(post: Post): Promise<void> {
         existing?.trim() || new Date().toISOString();
     }
 
+    const cats =
+      post.categories?.length ? post.categories : post.category ? [post.category] : [];
+    const categoryCol = cats[0] ?? post.category;
+    const categoriesJson = JSON.stringify(cats.length ? cats : [post.category]);
+
     await client.query(
       `INSERT INTO posts (
-        slug, title, description, category, main_keyword, keywords, published_at, updated_at,
+        slug, title, description, category, categories, main_keyword, keywords, published_at, updated_at,
         published, seo_title, video_platform, video_id, video_title, related, content, views, likes,
         featured, created_at, thumbnail_url, last_saved_at, slug_history
       ) VALUES (
-        $1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15,0,0,$16,$17,$18,$19,'[]'::jsonb
+        $1,$2,$3,$4,$5::jsonb,$6,$7::jsonb,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16,0,0,$17,$18,$19,$20,'[]'::jsonb
       )
       ON CONFLICT (slug) DO UPDATE SET
         title = EXCLUDED.title,
         description = EXCLUDED.description,
         category = EXCLUDED.category,
+        categories = EXCLUDED.categories,
         main_keyword = EXCLUDED.main_keyword,
         keywords = EXCLUDED.keywords,
         published_at = EXCLUDED.published_at,
@@ -350,7 +383,8 @@ export async function dbUpsertPost(post: Post): Promise<void> {
         post.slug,
         post.title,
         post.description,
-        post.category,
+        categoryCol,
+        categoriesJson,
         post.mainKeyword,
         JSON.stringify(post.keywords ?? []),
         post.publishedAt,
@@ -432,9 +466,21 @@ export async function dbGetPublishedCountByCategory(): Promise<Record<string, nu
   const p = getPool();
   if (!p) return {};
   await ensureInit();
-  const result = await p.query(
-    `SELECT category, COUNT(*)::int AS n FROM posts WHERE published = TRUE GROUP BY category`,
-  );
+  const result = await p.query(`
+    SELECT cat_slug AS category, COUNT(*)::int AS n
+    FROM posts,
+    LATERAL jsonb_array_elements_text(
+      CASE
+        WHEN categories IS NOT NULL
+          AND jsonb_typeof(categories) = 'array'
+          AND jsonb_array_length(categories) > 0
+        THEN categories
+        ELSE jsonb_build_array(category)
+      END
+    ) AS t(cat_slug)
+    WHERE published = TRUE AND TRIM(t.cat_slug) <> ''
+    GROUP BY cat_slug
+  `);
   const out: Record<string, number> = {};
   for (const row of result.rows as { category: string; n: number }[]) {
     out[row.category] = row.n;
@@ -476,30 +522,69 @@ export async function dbDeletePost(slug: string): Promise<boolean> {
   return (result.rowCount ?? 0) > 0;
 }
 
-/** Lightweight autosave for unpublished drafts only. */
+/** Partial fields for draft autosave — omitted keys are left unchanged in the database. */
+export type DraftAutosavePatch = {
+  lastSavedAt: string;
+  title?: string;
+  content?: string;
+  category?: string;
+  categories?: string[];
+  thumbnailUrl?: string | null;
+};
+
+/** Lightweight autosave for unpublished drafts only (partial UPDATE). */
 export async function dbPatchDraftAutosave(
   slug: string,
-  patch: {
-    title: string;
-    content: string;
-    category: string;
-    thumbnailUrl: string | null;
-    lastSavedAt: string;
-  },
+  patch: DraftAutosavePatch,
 ): Promise<boolean> {
   const p = getPool();
   if (!p) return false;
   await ensureInit();
+  const sets: string[] = ["last_saved_at = $1", "updated_at = $1"];
+  const vals: unknown[] = [patch.lastSavedAt];
+  let i = 2;
+
+  if (patch.title !== undefined) {
+    const t = String(patch.title).trim();
+    if (t) {
+      sets.push(`title = $${i}`);
+      vals.push(t);
+      i++;
+    }
+  }
+  if (patch.content !== undefined) {
+    sets.push(`content = $${i}`);
+    vals.push(patch.content);
+    i++;
+  }
+  if (patch.categories !== undefined && patch.categories.length > 0) {
+    sets.push(`categories = $${i}::jsonb`);
+    vals.push(JSON.stringify(patch.categories));
+    i++;
+    sets.push(`category = $${i}`);
+    vals.push(patch.categories[0]);
+    i++;
+  } else if (patch.category !== undefined) {
+    const c = String(patch.category).trim();
+    if (c) {
+      sets.push(`category = $${i}`);
+      vals.push(c);
+      i++;
+      sets.push(`categories = $${i}::jsonb`);
+      vals.push(JSON.stringify([c]));
+      i++;
+    }
+  }
+  if (patch.thumbnailUrl !== undefined) {
+    sets.push(`thumbnail_url = $${i}`);
+    vals.push(patch.thumbnailUrl);
+    i++;
+  }
+
+  vals.push(slug);
   const result = await p.query(
-    `UPDATE posts SET
-      title = $2,
-      content = $3,
-      category = $4,
-      thumbnail_url = $5,
-      last_saved_at = $6,
-      updated_at = $6
-    WHERE slug = $1 AND published = FALSE`,
-    [slug, patch.title, patch.content, patch.category, patch.thumbnailUrl, patch.lastSavedAt],
+    `UPDATE posts SET ${sets.join(", ")} WHERE slug = $${i} AND published = FALSE`,
+    vals,
   );
   return (result.rowCount ?? 0) > 0;
 }

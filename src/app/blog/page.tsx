@@ -18,6 +18,7 @@ export const metadata: Metadata = {
 export default async function BlogIndex() {
   const categories = await getCategoriesAsync();
   const posts = await getAllPostsAsync();
+  const categoryNames = new Map(categories.map((c) => [c.slug, c.name]));
 
   return (
     <Container>
@@ -47,7 +48,7 @@ export default async function BlogIndex() {
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {posts.map((post) => (
-            <PostCard key={post.slug} post={post} />
+            <PostCard key={post.slug} post={post} categoryNames={categoryNames} />
           ))}
         </div>
       </div>

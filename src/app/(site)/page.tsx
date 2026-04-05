@@ -4,6 +4,7 @@ import PostCard from "@/components/PostCard";
 import CategoryTile from "@/components/CategoryTile";
 import VideoEmbed from "@/components/VideoEmbed";
 import HomeSearch from "@/components/HomeSearch";
+import PostCategoryLinks from "@/components/PostCategoryLinks";
 import {
   getAllPostsAsync,
   getFeaturedPostAsync,
@@ -29,6 +30,7 @@ export default async function Home() {
   const videos = await getAllEmbeddedVideosAsync();
   const primaryVideo = videos[0];
   const secondaryVideo = videos[1];
+  const categoryNames = new Map(categories.map((c) => [c.slug, c.name]));
 
   return (
     <div className="relative isolate overflow-hidden bg-white dark:bg-zinc-950 before:absolute before:inset-0 before:-z-10 before:content-[''] before:bg-[radial-gradient(60%_60%_at_0%_0%,rgba(16,185,129,0.18),transparent_55%),radial-gradient(55%_55%_at_90%_0%,rgba(16,185,129,0.10),transparent_55%),linear-gradient(to_bottom,rgba(16,185,129,0.08),transparent_45%)] dark:before:bg-[radial-gradient(60%_60%_at_0%_0%,rgba(16,185,129,0.22),transparent_55%),radial-gradient(55%_55%_at_90%_0%,rgba(16,185,129,0.14),transparent_55%),linear-gradient(to_bottom,rgba(16,185,129,0.10),transparent_48%)]">
@@ -101,9 +103,7 @@ export default async function Home() {
                     key={post.slug}
                     className="rounded-2xl border border-emerald-100 bg-emerald-50/30 p-4 dark:border-emerald-900 dark:bg-emerald-950/20"
                   >
-                    <div className="text-xs font-semibold text-emerald-700">
-                      {post.category}
-                    </div>
+                    <PostCategoryLinks post={post} nameBySlug={categoryNames} />
                     <Link
                       href={`/blog/${post.slug}`}
                       className="mt-2 block text-sm font-bold leading-6 text-zinc-900 hover:underline underline-offset-4 dark:text-zinc-100"
@@ -177,7 +177,11 @@ export default async function Home() {
                 ) : null}
                 <div className="flex flex-col justify-center p-6 sm:p-8">
                   <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
-                    {homeFeatured.category}
+                    <PostCategoryLinks
+                      post={homeFeatured}
+                      nameBySlug={categoryNames}
+                      className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400"
+                    />
                   </div>
                   <h3 className="mt-2 text-2xl font-bold leading-tight text-zinc-900 dark:text-zinc-100 sm:text-3xl">
                     <Link href={`/blog/${homeFeatured.slug}`} className="hover:underline underline-offset-4">
@@ -225,7 +229,7 @@ export default async function Home() {
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {latestPosts.map((post) => (
-              <PostCard key={post.slug} post={post} />
+              <PostCard key={post.slug} post={post} categoryNames={categoryNames} />
             ))}
           </div>
         </Container>

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { searchPostsPublicAsync } from "@/lib/content/posts";
+import { getPostCategorySlugs, searchPostsPublicAsync } from "@/lib/content/posts";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -13,7 +13,7 @@ export async function GET(req: Request) {
     slug: p.slug,
     title: p.title,
     description: p.description,
-    category: p.category,
+    categories: getPostCategorySlugs(p),
   }));
 
   return NextResponse.json({ results });

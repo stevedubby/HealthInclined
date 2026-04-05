@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import matter from "gray-matter";
+import type { Category } from "@/lib/categories";
 import type { PostFrontmatter, RelatedLink } from "@/lib/content/posts";
 import { getReadContentRoots, getWritableContentRoot } from "@/lib/content-paths";
 
@@ -31,6 +32,26 @@ export function parseKeywords(text: string): string[] {
     .split(/[,|\n]/)
     .map((k) => k.trim())
     .filter(Boolean);
+}
+
+/** Resolve `categories` array or legacy single `category` against the catalog. */
+export function parseAdminArticleCategories(
+  body: { categories?: unknown; category?: string },
+  catalog: Category[],
+): { ok: true; slugs: string[] } | { ok: false; error: string } {
+  const valid = new Set(catalog.map((c) => c.slug));
+  if (Array.isArray(body.categories) && body.categories.length > 0) {
+    const slugs = [
+      ...new Set(body.categories.map((x) => String(x).trim()).filter(Boolean)),
+    ];
+    if (!slugs.length) return { ok: false, error: "Select at least one category" };
+    if (!slugs.every((s) => valid.has(s))) return { ok: false, error: "Invalid category" };
+    return { ok: true, slugs };
+  }
+  const single = String(body.category ?? "").trim();
+  if (!single) return { ok: false, error: "Invalid category" };
+  if (!valid.has(single)) return { ok: false, error: "Invalid category" };
+  return { ok: true, slugs: [single] };
 }
 
 export function writePostMarkdown(slug: string, frontmatter: PostFrontmatter, body: string): void {

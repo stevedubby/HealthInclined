@@ -4,10 +4,16 @@ import { requireAdminSession } from "@/lib/admin-api";
 import type { PostFrontmatter } from "@/lib/content/posts";
 import {
   isValidSlug,
+  parseAdminArticleCategories,
   parseKeywords,
-  parseRelatedLines
+  parseRelatedLines,
 } from "@/lib/admin-posts";
-import { deletePostAsync, getPostBySlugAdminAsync, upsertPostAsync } from "@/lib/content/posts";
+import {
+  deletePostAsync,
+  getPostBySlugAdminAsync,
+  getPostCategorySlugs,
+  upsertPostAsync,
+} from "@/lib/content/posts";
 import { dbRenamePostSlug, isDatabaseEnabled } from "@/lib/db-content";
 import { getCategoriesAsync } from "@/lib/categories";
 import { getPersistenceErrorMessage, hasPersistentContentStore } from "@/lib/content-paths";
@@ -39,6 +45,7 @@ export async function GET(_req: Request, ctx: Ctx) {
       title: data.title,
       description: data.description,
       category: data.category,
+      categories: getPostCategorySlugs(data),
       mainKeyword: data.mainKeyword,
       keywords: data.keywords,
       publishedAt: data.publishedAt,
@@ -60,7 +67,8 @@ export async function GET(_req: Request, ctx: Ctx) {
 type UpdateBody = {
   title: string;
   description: string;
-  category: string;
+  category?: string;
+  categories?: string[];
   mainKeyword: string;
   keywordsText: string;
   publishedAt: string;
@@ -99,7 +107,7 @@ export async function PUT(req: Request, ctx: Ctx) {
   if (!prior) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  const priorCategory = prior.category;
+  const priorCategorySlugs = getPostCategorySlugs(prior);
 
   let body: UpdateBody;
   try {
@@ -108,10 +116,13 @@ export async function PUT(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const category = String(body.category ?? "").trim();
-  if (!(await getCategoriesAsync()).some((c) => c.slug === category)) {
-    return NextResponse.json({ error: "Invalid category" }, { status: 400 });
+  const catalog = await getCategoriesAsync();
+  const catParsed = parseAdminArticleCategories(body, catalog);
+  if (!catParsed.ok) {
+    return NextResponse.json({ error: catParsed.error }, { status: 400 });
   }
+  const categorySlugs = catParsed.slugs;
+  const category = categorySlugs[0];
 
   const requestedSlug = String(body.slug ?? slug).trim().toLowerCase();
   if (!isValidSlug(requestedSlug)) {
@@ -152,6 +163,7 @@ export async function PUT(req: Request, ctx: Ctx) {
     title,
     description,
     category,
+    categories: categorySlugs,
     mainKeyword,
     keywords: keywords.length ? keywords : [mainKeyword],
     publishedAt,
@@ -253,7 +265,13 @@ export async function PUT(req: Request, ctx: Ctx) {
     }
 
     await upsertPostAsync(
-      { slug: targetSlug, content: articleBody, ...frontmatter },
+      {
+        slug: targetSlug,
+        content: articleBody,
+        ...frontmatter,
+        category,
+        categories: categorySlugs,
+      },
       !isDatabaseEnabled() && requestedSlug !== slug ? { previousSlug: slug } : undefined,
     );
     revalidatePath("/", "layout");
@@ -262,9 +280,8 @@ export async function PUT(req: Request, ctx: Ctx) {
     revalidatePath("/videos");
     revalidatePath(`/blog/${slug}`);
     revalidatePath(`/blog/${targetSlug}`);
-    revalidatePath(`/category/${frontmatter.category}`);
-    if (frontmatter.category !== priorCategory) {
-      revalidatePath(`/category/${priorCategory}`);
+    for (const c of new Set([...priorCategorySlugs, ...categorySlugs])) {
+      revalidatePath(`/category/${c}`);
     }
     revalidatePath("/admin");
     revalidatePath("/sitemap.xml");
@@ -312,6 +329,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     title: prior.title,
     description: prior.description,
     category: prior.category,
+    categories: getPostCategorySlugs(prior),
     mainKeyword: prior.mainKeyword,
     keywords: prior.keywords,
     publishedAt: prior.publishedAt,
@@ -332,13 +350,20 @@ export async function PATCH(req: Request, ctx: Ctx) {
   }
 
   try {
-    await upsertPostAsync({ slug, content: prior.content, ...nextFm });
+    await upsertPostAsync({
+      slug,
+      content: prior.content,
+      ...nextFm,
+      categories: getPostCategorySlugs(prior),
+    });
     revalidatePath("/", "layout");
     revalidatePath("/");
     revalidatePath("/blog");
     revalidatePath("/videos");
     revalidatePath(`/blog/${slug}`);
-    revalidatePath(`/category/${prior.category}`);
+    for (const c of getPostCategorySlugs(prior)) {
+      revalidatePath(`/category/${c}`);
+    }
     revalidatePath("/admin");
     revalidatePath("/sitemap.xml");
   } catch (e) {
@@ -375,8 +400,10 @@ export async function DELETE(_req: Request, ctx: Ctx) {
   revalidatePath("/blog");
   revalidatePath("/videos");
   revalidatePath(`/blog/${slug}`);
-  if (prior?.category) {
-    revalidatePath(`/category/${prior.category}`);
+  if (prior) {
+    for (const c of getPostCategorySlugs(prior)) {
+      revalidatePath(`/category/${c}`);
+    }
   }
   revalidatePath("/admin");
   revalidatePath("/sitemap.xml");

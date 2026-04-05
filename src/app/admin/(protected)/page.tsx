@@ -3,7 +3,7 @@ import AdminDeleteArticleButton from "@/components/AdminDeleteArticleButton";
 import AdminThemeToggle from "@/components/AdminThemeToggle";
 import AdminUnpublishButton from "@/components/AdminUnpublishButton";
 import { getCategoriesAsync } from "@/lib/categories";
-import { getAllPostsAdminAsync } from "@/lib/content/posts";
+import { getAllPostsAdminAsync, getPostCategorySlugs } from "@/lib/content/posts";
 
 export default async function AdminDashboardPage() {
   const posts = await getAllPostsAdminAsync();
@@ -79,7 +79,7 @@ export default async function AdminDashboardPage() {
               <tr>
                 <th className="px-4 py-3">Article</th>
                 <th className="hidden px-4 py-3 sm:table-cell">Slug</th>
-                <th className="px-4 py-3">Category</th>
+                <th className="px-4 py-3">Categories</th>
                 <th className="hidden px-4 py-3 md:table-cell">Date</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3 text-right">Actions</th>
@@ -88,7 +88,10 @@ export default async function AdminDashboardPage() {
             <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
               {posts.map((p) => {
                 const isLive = p.published !== false;
-                const cat = categoryBySlug.get(p.category);
+                const catSlugs = getPostCategorySlugs(p);
+                const catLabel = catSlugs
+                  .map((s) => categoryBySlug.get(s)?.name ?? s)
+                  .join(" · ");
                 return (
                   <tr key={p.slug} className="text-zinc-700 dark:text-zinc-300">
                     <td className="px-4 py-3">
@@ -100,9 +103,7 @@ export default async function AdminDashboardPage() {
                     <td className="hidden px-4 py-3 font-mono text-xs text-zinc-500 sm:table-cell">
                       {p.slug}
                     </td>
-                    <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
-                      {cat?.name ?? p.category}
-                    </td>
+                    <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{catLabel}</td>
                     <td className="hidden px-4 py-3 text-zinc-500 md:table-cell">{p.publishedAt}</td>
                     <td className="px-4 py-3">
                       <span

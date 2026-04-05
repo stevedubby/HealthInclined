@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Category } from "@/lib/categories";
@@ -23,6 +23,10 @@ import { parseYoutubeVideoId } from "@/lib/youtube-id";
 function effectiveMetaTitle(seoTitle: string, title: string): string {
   const s = seoTitle.trim();
   return s || title.trim();
+}
+
+function sortedCategoryKey(slugs: string[]) {
+  return JSON.stringify([...slugs].slice().sort());
 }
 
 const AUTOSAVE_LS_PREFIX = "healthinclined-editor-autosave:v1";
@@ -51,7 +55,7 @@ export default function AdminArticleEditor({
   const [title, setTitle] = useState("");
   const [seoTitle, setSeoTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [category, setCategory] = useState(defaultCat);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([defaultCat]);
   const [mainKeyword, setMainKeyword] = useState("");
   const [keywordsText, setKeywordsText] = useState("");
   const [publishedAt, setPublishedAt] = useState(() => new Date().toISOString().slice(0, 10));
@@ -84,8 +88,15 @@ export default function AdminArticleEditor({
   const snapRef = useRef({
     title: "",
     body: "",
-    category: defaultCat,
+    categorySlugs: [defaultCat] as string[],
     thumbnailUrl: "",
+  });
+  const lastAutosaveSentRef = useRef({
+    title: "",
+    body: "",
+    categoryKey: "",
+    thumbnailUrl: "",
+    slug: "",
   });
   const ctxRef = useRef({
     mode,
@@ -100,7 +111,7 @@ export default function AdminArticleEditor({
   const autosaveUnlockedRef = useRef(false);
 
   slugRef.current = slug;
-  snapRef.current = { title, body, category, thumbnailUrl };
+  snapRef.current = { title, body, categorySlugs: selectedCategories, thumbnailUrl };
   ctxRef.current = { mode, editSlug: editSlug ?? null, remoteDraftSlug, published };
   autosaveUnlockedRef.current = autosaveUnlocked;
 
@@ -139,13 +150,16 @@ export default function AdminArticleEditor({
     if (lastAutosaveAt) {
       return `Last saved · ${new Date(lastAutosaveAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" })}`;
     }
-    return "Autosave runs about every 12 seconds and after you pause typing.";
+    return "Autosave runs about every 15 seconds and ~3s after you pause typing.";
   }, [published, autosaveUnlocked, autosaveState, lastAutosaveAt]);
 
   useEffect(() => {
-    if (categories.some((c) => c.slug === category)) return;
-    setCategory(defaultCat);
-  }, [categories, category, defaultCat]);
+    setSelectedCategories((prev) => {
+      const next = prev.filter((s) => categories.some((c) => c.slug === s));
+      if (next.length === prev.length && next.length > 0) return prev;
+      return next.length ? next : [defaultCat];
+    });
+  }, [categories, defaultCat]);
 
   useEffect(() => {
     if (mode !== "new" || loading || hydratedNewRef.current) return;
@@ -156,10 +170,16 @@ export default function AdminArticleEditor({
           body?: string;
           title?: string;
           category?: string;
+          categories?: string[];
           thumbnailUrl?: string;
         };
         if (d.title) setTitle(d.title);
-        if (d.category && categories.some((c) => c.slug === d.category)) setCategory(d.category);
+        if (Array.isArray(d.categories) && d.categories.length) {
+          const v = d.categories.filter((s) => categories.some((c) => c.slug === s));
+          if (v.length) setSelectedCategories(v);
+        } else if (d.category && categories.some((c) => c.slug === d.category)) {
+          setSelectedCategories([d.category]);
+        }
         if (d.thumbnailUrl !== undefined) setThumbnailUrl(d.thumbnailUrl);
         if (d.body && isTiptapJsonContent(d.body)) {
           setBody(d.body);
@@ -185,18 +205,38 @@ export default function AdminArticleEditor({
         return;
       }
       const wasNew = ctx.mode === "new";
-      const prevEditSlug = ctx.editSlug;
+      const sent = lastAutosaveSentRef.current;
+      const catKey = sortedCategoryKey(snap.categorySlugs);
+      const slugNow = slugRef.current.trim().toLowerCase();
+      const slugForPut = ctx.mode === "edit" ? ctx.editSlug : ctx.remoteDraftSlug;
+
+      const payload: Record<string, unknown> = {};
+      const trimmedTitle = snap.title.trim();
+      if (trimmedTitle && trimmedTitle !== sent.title) payload.title = trimmedTitle;
+      if (snap.body !== sent.body) payload.body = snap.body;
+      if (catKey !== sent.categoryKey) payload.categories = snap.categorySlugs;
+      if (snap.thumbnailUrl.trim() !== sent.thumbnailUrl) {
+        payload.thumbnailUrl = snap.thumbnailUrl.trim();
+      }
+      if (
+        slugForPut &&
+        slugNow &&
+        slugNow !== slugForPut &&
+        /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slugNow) &&
+        slugNow.length <= 120
+      ) {
+        payload.slug = slugNow;
+      } else if (!slugForPut && slugNow && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slugNow) && slugNow.length <= 120) {
+        payload.slug = slugNow;
+      }
+
+      if (Object.keys(payload).length === 0) {
+        return;
+      }
+
       inFlightRef.current = true;
-      setAutosaveState("saving");
-      const payload = {
-        title: snap.title.trim() || "Untitled draft",
-        body: snap.body,
-        category: snap.category,
-        thumbnailUrl: snap.thumbnailUrl.trim(),
-        slug: slugRef.current.trim().toLowerCase(),
-      };
+      startTransition(() => setAutosaveState("saving"));
       try {
-        const slugForPut = ctx.mode === "edit" ? ctx.editSlug : ctx.remoteDraftSlug;
         let res: Response;
         if (slugForPut) {
           res = await fetch(`/api/articles/${encodeURIComponent(slugForPut)}/draft`, {
@@ -206,11 +246,7 @@ export default function AdminArticleEditor({
             credentials: "include",
           });
         } else {
-          const userSlug = slugRef.current.trim().toLowerCase();
-          const postBody: Record<string, unknown> = { ...payload };
-          if (userSlug && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(userSlug) && userSlug.length <= 120) {
-            postBody.slug = userSlug;
-          }
+          const postBody = { ...payload, categories: snap.categorySlugs };
           res = await fetch("/api/articles/draft", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -227,10 +263,10 @@ export default function AdminArticleEditor({
         };
         if (!res.ok) {
           if (res.status === 503) {
-            setAutosaveState("local");
+            startTransition(() => setAutosaveState("local"));
             setLastAutosaveAt(new Date().toISOString());
           } else {
-            setAutosaveState("error");
+            startTransition(() => setAutosaveState("error"));
           }
           return;
         }
@@ -242,13 +278,18 @@ export default function AdminArticleEditor({
           setRemoteDraftSlug(data.slug);
           if (wasNew) {
             router.replace(`/admin/posts/${encodeURIComponent(data.slug)}/edit`);
-          } else if (!wasNew && prevEditSlug && data.slug !== prevEditSlug) {
-            router.replace(`/admin/posts/${encodeURIComponent(data.slug)}/edit`);
           }
         }
-        setAutosaveState("saved");
+        const u = { ...sent };
+        if ("title" in payload) u.title = trimmedTitle;
+        if ("body" in payload) u.body = snap.body;
+        if ("categories" in payload) u.categoryKey = catKey;
+        if ("thumbnailUrl" in payload) u.thumbnailUrl = snap.thumbnailUrl.trim();
+        if (data.slug) u.slug = data.slug;
+        lastAutosaveSentRef.current = u;
+        startTransition(() => setAutosaveState("saved"));
       } catch {
-        setAutosaveState("error");
+        startTransition(() => setAutosaveState("error"));
       } finally {
         inFlightRef.current = false;
       }
@@ -265,11 +306,17 @@ export default function AdminArticleEditor({
         title?: string;
         body?: string;
         category?: string;
+        categories?: string[];
         thumbnailUrl?: string;
       };
       if (!d.savedAt || new Date(d.savedAt) <= new Date(lastServerSavedAt)) return;
       if (d.title) setTitle(d.title);
-      if (d.category && categories.some((c) => c.slug === d.category)) setCategory(d.category);
+      if (Array.isArray(d.categories) && d.categories.length) {
+        const v = d.categories.filter((s) => categories.some((c) => c.slug === s));
+        if (v.length) setSelectedCategories(v);
+      } else if (d.category && categories.some((c) => c.slug === d.category)) {
+        setSelectedCategories([d.category]);
+      }
       if (d.thumbnailUrl !== undefined) setThumbnailUrl(d.thumbnailUrl);
       if (d.body && isTiptapJsonContent(d.body)) {
         setBody(d.body);
@@ -293,7 +340,7 @@ export default function AdminArticleEditor({
             savedAt: new Date().toISOString(),
             title,
             body,
-            category,
+            categories: selectedCategories,
             thumbnailUrl,
           }),
         );
@@ -302,21 +349,21 @@ export default function AdminArticleEditor({
       }
     }, 700);
     return () => clearTimeout(id);
-  }, [title, body, category, thumbnailUrl, published, mode, editSlug, remoteDraftSlug]);
+  }, [title, body, selectedCategories, thumbnailUrl, published, mode, editSlug, remoteDraftSlug]);
 
   useEffect(() => {
     if (published) return;
     const id = window.setTimeout(() => {
       void flushAutosaveRef.current();
-    }, 2500);
+    }, 2800);
     return () => clearTimeout(id);
-  }, [title, body, category, thumbnailUrl, slug, published, autosaveUnlocked]);
+  }, [title, body, selectedCategories, thumbnailUrl, slug, published, autosaveUnlocked]);
 
   useEffect(() => {
     if (published) return;
     const id = window.setInterval(() => {
       void flushAutosaveRef.current();
-    }, 12000);
+    }, 15000);
     return () => clearInterval(id);
   }, [published, autosaveUnlocked]);
 
@@ -334,6 +381,7 @@ export default function AdminArticleEditor({
             title: string;
             description: string;
             category: string;
+            categories?: string[];
             mainKeyword: string;
             keywords: string[];
             publishedAt: string;
@@ -362,7 +410,15 @@ export default function AdminArticleEditor({
         setTitle(fm.title);
         setSeoTitle(fm.seoTitle ?? "");
         setDescription(fm.description);
-        setCategory(categories.some((c) => c.slug === fm.category) ? fm.category : defaultCat);
+        const initialCats = (() => {
+          if (Array.isArray(fm.categories) && fm.categories.length) {
+            const v = fm.categories.filter((s) => categories.some((c) => c.slug === s));
+            return v.length ? v : [defaultCat];
+          }
+          if (fm.category && categories.some((c) => c.slug === fm.category)) return [fm.category];
+          return [defaultCat];
+        })();
+        setSelectedCategories(initialCats);
         setMainKeyword(fm.mainKeyword);
         setKeywordsText((fm.keywords ?? []).join(", "));
         setPublishedAt(fm.publishedAt);
@@ -390,18 +446,25 @@ export default function AdminArticleEditor({
         setCreatedAt(fm.createdAt?.trim() ?? "");
 
         const raw = data.body ?? "";
+        let loadedBody = EMPTY_TIPTAP_DOC_JSON;
         if (isTiptapJsonContent(raw)) {
-          setBody(raw);
+          loadedBody = raw;
         } else if (raw.trim()) {
           try {
-            setBody(markdownToTiptapJson(raw));
+            loadedBody = markdownToTiptapJson(raw);
           } catch {
-            setBody(EMPTY_TIPTAP_DOC_JSON);
+            loadedBody = EMPTY_TIPTAP_DOC_JSON;
           }
-        } else {
-          setBody(EMPTY_TIPTAP_DOC_JSON);
         }
+        setBody(loadedBody);
         setEditorMountKey((k) => k + 1);
+        lastAutosaveSentRef.current = {
+          title: fm.title,
+          body: loadedBody,
+          categoryKey: sortedCategoryKey(initialCats),
+          thumbnailUrl: (fm.thumbnailUrl ?? "").trim(),
+          slug: editSlug,
+        };
       } catch {
         if (!cancelled) setError("Network error");
       } finally {
@@ -419,6 +482,10 @@ export default function AdminArticleEditor({
     setSuccess(null);
     if (!isValidArticleBody(body)) {
       setError("Add some content to the article body before saving.");
+      return;
+    }
+    if (!selectedCategories.length) {
+      setError("Select at least one category.");
       return;
     }
 
@@ -451,7 +518,7 @@ export default function AdminArticleEditor({
         slug: slug.trim().toLowerCase(),
         title,
         description,
-        category,
+        categories: selectedCategories,
         mainKeyword,
         keywordsText,
         publishedAt,
@@ -548,7 +615,7 @@ export default function AdminArticleEditor({
           </p>
           <h1 className={pageTitle}>{mode === "new" ? "New article" : "Edit article"}</h1>
           <p className={`mt-2 max-w-xl text-sm ${muted}`}>
-            Write visually (like Medium or Notion), tune SEO, choose a category, then publish or keep a private draft.
+            Write visually (like Medium or Notion), tune SEO, pick categories, then publish or keep a private draft.
           </p>
         </div>
         <div className="flex flex-col items-stretch gap-1 sm:items-end">
@@ -624,20 +691,36 @@ export default function AdminArticleEditor({
                 </p>
               </label>
 
-              <label className={`${labelClass} sm:col-span-2`}>
-                Category
-                <select
-                  value={category}
-                  onChange={(ev) => setCategory(ev.target.value)}
-                  className={inputClass}
-                >
+              <div className={`${labelClass} sm:col-span-2`}>
+                Categories
+                <p className="mt-1 text-xs font-normal normal-case text-zinc-500 dark:text-zinc-500">
+                  Select one or more. The article appears on each category&apos;s public page.
+                </p>
+                <div className="mt-2 flex flex-col gap-2 rounded-xl border border-zinc-300 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900/80">
                   {categories.map((c) => (
-                    <option key={c.slug} value={c.slug}>
-                      {c.name}
-                    </option>
+                    <label
+                      key={c.slug}
+                      className="flex cursor-pointer items-center gap-3 text-sm font-normal normal-case text-zinc-800 dark:text-zinc-200"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedCategories.includes(c.slug)}
+                        onChange={() => {
+                          setSelectedCategories((prev) => {
+                            if (prev.includes(c.slug)) {
+                              const next = prev.filter((s) => s !== c.slug);
+                              return next.length ? next : prev;
+                            }
+                            return [...prev, c.slug].sort();
+                          });
+                        }}
+                        className="h-4 w-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500 dark:border-zinc-600"
+                      />
+                      <span>{c.name}</span>
+                    </label>
                   ))}
-                </select>
-              </label>
+                </div>
+              </div>
 
               <label className={`${labelClass} flex items-center gap-3 sm:col-span-2`}>
                 <input

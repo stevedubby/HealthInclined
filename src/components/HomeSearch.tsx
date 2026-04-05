@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
-type Hit = { slug: string; title: string; description: string; category: string };
+type Hit = { slug: string; title: string; description: string; categories: string[] };
 
 export default function HomeSearch() {
   const [q, setQ] = useState("");
@@ -68,7 +68,11 @@ export default function HomeSearch() {
                     href={`/blog/${r.slug}`}
                     className="block rounded-xl border border-transparent px-2 py-2 transition hover:border-emerald-100 hover:bg-emerald-50/50 dark:hover:border-emerald-900 dark:hover:bg-emerald-950/20"
                   >
-                    <span className="text-xs font-semibold text-emerald-700">{r.category}</span>
+                    <span className="text-xs font-semibold text-emerald-700">
+                      {r.categories?.length
+                        ? r.categories.map((s) => s.replace(/-/g, " ")).join(" · ")
+                        : ""}
+                    </span>
                     <span className="mt-0.5 block text-sm font-bold text-zinc-900 dark:text-zinc-100">{r.title}</span>
                     <span className="mt-1 line-clamp-2 text-xs leading-5 text-zinc-600 dark:text-zinc-400">{r.description}</span>
                   </Link>

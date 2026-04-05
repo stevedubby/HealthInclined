@@ -3,7 +3,7 @@ import Link from "next/link";
 import Container from "@/components/Container";
 import PostCard from "@/components/PostCard";
 import { getPostsByCategoryAsync } from "@/lib/content/posts";
-import { getCategoryBySlugAsync } from "@/lib/categories";
+import { getCategoriesAsync, getCategoryBySlugAsync } from "@/lib/categories";
 import { SITE } from "@/lib/site";
 import { notFound } from "next/navigation";
 
@@ -41,6 +41,8 @@ export default async function CategoryPage({
   if (!category) notFound();
 
   const posts = await getPostsByCategoryAsync(category.slug);
+  const allCategories = await getCategoriesAsync();
+  const categoryNames = new Map(allCategories.map((c) => [c.slug, c.name]));
 
   return (
     <Container>
@@ -67,7 +69,9 @@ export default async function CategoryPage({
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {posts.length ? (
-            posts.map((post) => <PostCard key={post.slug} post={post} />)
+            posts.map((post) => (
+              <PostCard key={post.slug} post={post} categoryNames={categoryNames} />
+            ))
           ) : (
             <div className="sm:col-span-2 lg:col-span-3 rounded-2xl border border-emerald-100 bg-white p-6 text-sm leading-6 text-zinc-600 dark:border-emerald-900 dark:bg-zinc-900 dark:text-zinc-300">
               No posts yet in this category. Check back soon.

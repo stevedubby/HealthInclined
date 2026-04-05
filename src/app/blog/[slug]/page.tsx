@@ -10,7 +10,7 @@ import {
 } from "@/components/ArticleEngagement";
 import VideoEmbed from "@/components/VideoEmbed";
 import { estimateArticleReadMinutes } from "@/lib/article-read-time";
-import { getPostBySlugAsync } from "@/lib/content/posts";
+import { getPostBySlugAsync, getPostCategorySlugs } from "@/lib/content/posts";
 import { getCategoryBySlugAsync } from "@/lib/categories";
 import { SITE } from "@/lib/site";
 
@@ -58,7 +58,13 @@ export default async function BlogPostPage({
     redirect(`/blog/${post.slug}`);
   }
 
-  const category = await getCategoryBySlugAsync(post.category);
+  const categorySlugs = getPostCategorySlugs(post);
+  const categoryRows = await Promise.all(
+    categorySlugs.map(async (s) => ({
+      slug: s,
+      meta: await getCategoryBySlugAsync(s),
+    })),
+  );
 
   const published = new Date(post.publishedAt).toLocaleDateString("en-US", {
     year: "numeric",
@@ -81,16 +87,27 @@ export default async function BlogPostPage({
                 Blog
               </Link>
             </li>
-            {category ? (
+            {categoryRows.length ? (
               <>
                 <li aria-hidden="true">/</li>
                 <li>
-                  <Link
-                    href={`/category/${category.slug}`}
-                    className="font-semibold text-emerald-700 hover:underline underline-offset-4"
-                  >
-                    {category.name}
-                  </Link>
+                  <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+                    {categoryRows.map(({ slug: cslug, meta }, i) => (
+                      <span key={cslug} className="inline-flex items-center gap-x-2">
+                        {i > 0 ? (
+                          <span className="text-zinc-300 dark:text-zinc-600" aria-hidden>
+                            ·
+                          </span>
+                        ) : null}
+                        <Link
+                          href={`/category/${cslug}`}
+                          className="font-semibold text-emerald-700 hover:underline underline-offset-4"
+                        >
+                          {meta?.name ?? cslug.replace(/-/g, " ")}
+                        </Link>
+                      </span>
+                    ))}
+                  </span>
                 </li>
               </>
             ) : null}
