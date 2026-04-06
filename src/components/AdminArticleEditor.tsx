@@ -45,6 +45,40 @@ function autosaveStorageKey(slug: string | null) {
   return slug ? `${AUTOSAVE_LS_PREFIX}:${slug}` : `${AUTOSAVE_LS_PREFIX}:new`;
 }
 
+/** New-article backup: tab session only so "Create article" is a clean slate in a new tab. */
+function offlineDraftStore(mode: Mode): Storage {
+  return mode === "new" ? sessionStorage : localStorage;
+}
+
+function offlineDraftStorageKey(
+  mode: Mode,
+  editSlug: string | undefined,
+  remoteDraftSlug: string | null,
+): string {
+  const slugKey = mode === "edit" && editSlug ? editSlug : remoteDraftSlug;
+  return autosaveStorageKey(slugKey ?? null);
+}
+
+const LEGACY_DRAFT_DESCRIPTION =
+  "Draft — add a meta description before publishing.";
+
+function normalizeLoadedSeoFields(fm: {
+  description: string;
+  mainKeyword: string;
+  keywords: string[];
+}): { description: string; mainKeyword: string; keywordsText: string } {
+  const placeholderSeo =
+    fm.mainKeyword.trim().toLowerCase() === "draft" &&
+    (fm.keywords ?? []).length === 1 &&
+    (fm.keywords ?? [])[0] === "draft";
+  return {
+    description:
+      fm.description.trim() === LEGACY_DRAFT_DESCRIPTION.trim() ? "" : fm.description,
+    mainKeyword: placeholderSeo ? "" : fm.mainKeyword,
+    keywordsText: placeholderSeo ? "" : (fm.keywords ?? []).join(", "),
+  };
+}
+
 type Mode = "new" | "edit";
 
 export default function AdminArticleEditor({
@@ -183,7 +217,12 @@ export default function AdminArticleEditor({
   useEffect(() => {
     if (mode !== "new" || loading || hydratedNewRef.current) return;
     try {
-      const raw = localStorage.getItem(autosaveStorageKey(null));
+      try {
+        localStorage.removeItem(autosaveStorageKey(null));
+      } catch {
+        /* ignore */
+      }
+      const raw = offlineDraftStore("new").getItem(autosaveStorageKey(null));
       if (raw) {
         const d = JSON.parse(raw) as {
           body?: string;
@@ -365,11 +404,12 @@ export default function AdminArticleEditor({
 
   useEffect(() => {
     if (published) return;
-    const slugKey = mode === "edit" && editSlug ? editSlug : remoteDraftSlug;
+    const store = offlineDraftStore(mode);
+    const key = offlineDraftStorageKey(mode, editSlug, remoteDraftSlug);
     const id = window.setTimeout(() => {
       try {
-        localStorage.setItem(
-          autosaveStorageKey(slugKey),
+        store.setItem(
+          key,
           JSON.stringify({
             v: 1,
             savedAt: new Date().toISOString(),
@@ -449,7 +489,12 @@ export default function AdminArticleEditor({
         setSlug(editSlug);
         setTitle(fm.title);
         setSeoTitle(fm.seoTitle ?? "");
-        setDescription(fm.description);
+        const seo = normalizeLoadedSeoFields({
+          description: fm.description,
+          mainKeyword: fm.mainKeyword,
+          keywords: fm.keywords ?? [],
+        });
+        setDescription(seo.description);
         const initialCats = (() => {
           if (Array.isArray(fm.categories) && fm.categories.length) {
             const v = fm.categories.filter((s) => categories.some((c) => c.slug === s));
@@ -459,8 +504,8 @@ export default function AdminArticleEditor({
           return [defaultCat];
         })();
         setSelectedCategories(initialCats);
-        setMainKeyword(fm.mainKeyword);
-        setKeywordsText((fm.keywords ?? []).join(", "));
+        setMainKeyword(seo.mainKeyword);
+        setKeywordsText(seo.keywordsText);
         setPublishedAt(fm.publishedAt);
         setUpdatedAt(fm.updatedAt ?? "");
         setPublished(fm.published !== false);
@@ -633,6 +678,42 @@ export default function AdminArticleEditor({
     }
   }
 
+  function resetNewArticleDraft() {
+    if (mode !== "new") return;
+    try {
+      sessionStorage.removeItem(autosaveStorageKey(null));
+    } catch {
+      /* ignore */
+    }
+    setTitle("");
+    setSlug("");
+    setDescription("");
+    setSeoTitle("");
+    setMainKeyword("");
+    setKeywordsText("");
+    setThumbnailUrl("");
+    setBody(EMPTY_TIPTAP_DOC_JSON);
+    setEditorMountKey((k) => k + 1);
+    setSelectedCategories([defaultCat]);
+    setRelatedLinks([]);
+    setVideoPlatform("");
+    setVideoId("");
+    setVideoTitle("");
+    setPublishedAt(new Date().toISOString().slice(0, 10));
+    setAutosaveUnlocked(false);
+    setRemoteDraftSlug(null);
+    setLastAutosaveAt(null);
+    setAutosaveState("idle");
+    setDraftSyncBlockedCode(null);
+    lastAutosaveSentRef.current = {
+      title: "",
+      body: "",
+      categoryKey: sortedCategoryKey([defaultCat]),
+      thumbnailUrl: "",
+      slug: "",
+    };
+  }
+
   if (loading) {
     return <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading…</p>;
   }
@@ -657,6 +738,15 @@ export default function AdminArticleEditor({
           <p className={`mt-2 max-w-xl text-sm ${muted}`}>
             Write visually (like Medium or Notion), tune SEO, pick categories, then publish or keep a private draft.
           </p>
+          {mode === "new" ? (
+            <button
+              type="button"
+              onClick={resetNewArticleDraft}
+              className="mt-2 text-left text-xs font-semibold text-emerald-700 hover:underline dark:text-emerald-400"
+            >
+              Start blank — clear in-progress work in this tab
+            </button>
+          ) : null}
         </div>
         <div className="flex flex-col items-stretch gap-1 sm:items-end">
           <div className="flex flex-wrap items-center justify-end gap-2">
