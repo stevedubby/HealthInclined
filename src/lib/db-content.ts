@@ -1,6 +1,6 @@
 import { Pool } from "pg";
 import type { Category } from "@/lib/categories";
-import type { Post, PostFrontmatter } from "@/lib/content/posts";
+import type { Post, PostFrontmatter, VideoSpec } from "@/lib/content/posts";
 import { getDatabaseConnectionString } from "@/lib/env-database";
 
 let pool: Pool | null = null;
@@ -531,6 +531,8 @@ export type DraftAutosavePatch = {
   category?: string;
   categories?: string[];
   thumbnailUrl?: string | null;
+  /** Set or clear video columns (`null` clears). Omit to leave unchanged. */
+  video?: VideoSpec | null;
 };
 
 /** Lightweight autosave for unpublished drafts only (partial UPDATE). */
@@ -580,6 +582,29 @@ export async function dbPatchDraftAutosave(
     sets.push(`thumbnail_url = $${i}`);
     vals.push(patch.thumbnailUrl);
     i++;
+  }
+  if (patch.video !== undefined) {
+    if (patch.video === null) {
+      sets.push(`video_platform = $${i}`);
+      vals.push(null);
+      i++;
+      sets.push(`video_id = $${i}`);
+      vals.push(null);
+      i++;
+      sets.push(`video_title = $${i}`);
+      vals.push(null);
+      i++;
+    } else {
+      sets.push(`video_platform = $${i}`);
+      vals.push(patch.video.platform);
+      i++;
+      sets.push(`video_id = $${i}`);
+      vals.push(patch.video.id);
+      i++;
+      sets.push(`video_title = $${i}`);
+      vals.push(patch.video.title ?? null);
+      i++;
+    }
   }
 
   vals.push(slug);

@@ -16,6 +16,7 @@ import {
   EMPTY_TIPTAP_DOC_JSON,
   isTiptapJsonContent,
 } from "@/lib/tiptap-article";
+import { resolveDraftAutosaveVideo } from "@/lib/draft-video";
 
 type DraftBody = {
   slug?: string;
@@ -24,6 +25,9 @@ type DraftBody = {
   category?: string;
   categories?: string[];
   thumbnailUrl?: string;
+  videoPlatform?: "" | "youtube" | "tiktok";
+  videoId?: string;
+  videoTitle?: string;
 };
 
 function normalizeBodyJson(raw: string | undefined): string {
@@ -107,6 +111,10 @@ export async function POST(req: Request) {
         }
         patch.categories = parsed.slugs;
       }
+      const videoResolved = resolveDraftAutosaveVideo(body);
+      if (videoResolved !== undefined) {
+        patch.video = videoResolved;
+      }
 
       const ok = await dbPatchDraftAutosave(want, patch);
       if (!ok) {
@@ -142,6 +150,7 @@ export async function POST(req: Request) {
   const title = titleRaw || "Untitled draft";
   const thumb = String(body.thumbnailUrl ?? "").trim();
 
+  const videoResolved = resolveDraftAutosaveVideo(body);
   const post: Post = {
     slug,
     title,
@@ -158,6 +167,7 @@ export async function POST(req: Request) {
     createdAt: now.toISOString(),
     lastSavedAt,
     thumbnailUrl: thumb || undefined,
+    ...(videoResolved ? { video: videoResolved } : {}),
   };
 
   try {

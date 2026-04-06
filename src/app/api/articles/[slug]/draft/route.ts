@@ -11,6 +11,7 @@ import {
 import { getPersistenceErrorMessage, hasPersistentContentStore } from "@/lib/content-paths";
 import { getCategoriesAsync } from "@/lib/categories";
 import { EMPTY_TIPTAP_DOC_JSON, isTiptapJsonContent } from "@/lib/tiptap-article";
+import { resolveDraftAutosaveVideo } from "@/lib/draft-video";
 
 type DraftPatchBody = {
   title?: string;
@@ -20,6 +21,9 @@ type DraftPatchBody = {
   thumbnailUrl?: string;
   /** Intended slug (draft rename). */
   slug?: string;
+  videoPlatform?: "" | "youtube" | "tiktok";
+  videoId?: string;
+  videoTitle?: string;
 };
 
 type Ctx = { params: Promise<{ slug: string }> };
@@ -97,6 +101,10 @@ export async function PUT(req: Request, ctx: Ctx) {
       return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
     patch.categories = parsed.slugs;
+  }
+  const videoResolved = resolveDraftAutosaveVideo(body);
+  if (videoResolved !== undefined) {
+    patch.video = videoResolved;
   }
 
   let effectiveSlug = slug;

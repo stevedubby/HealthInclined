@@ -241,6 +241,10 @@ export async function PUT(req: Request, ctx: Ctx) {
         title: body.videoTitle?.trim() || undefined,
       };
     }
+  } else if (!vp && !vidRaw) {
+    /* explicit clear */
+  } else if (prior.video) {
+    frontmatter.video = prior.video;
   }
 
   let targetSlug = slug;

@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Category } from "@/lib/categories";
@@ -27,6 +27,37 @@ function effectiveMetaTitle(seoTitle: string, title: string): string {
 
 function sortedCategoryKey(slugs: string[]) {
   return JSON.stringify([...slugs].slice().sort());
+}
+
+function draftVideoSig(
+  platform: "" | "youtube" | "tiktok",
+  id: string,
+  vtitle: string,
+) {
+  return `${platform}\u0000${id.trim()}\u0000${vtitle.trim()}`;
+}
+
+function paintQuietAutosaveFooter(
+  el: HTMLElement | null,
+  opts: { unlocked: boolean; lastServerIso: string | null },
+) {
+  if (!el) return;
+  if (!opts.unlocked) {
+    el.textContent =
+      "Start writing to enable autosave (about 25 characters in the article body).";
+    return;
+  }
+  if (opts.lastServerIso) {
+    const t = new Date(opts.lastServerIso).toLocaleTimeString([], {
+      hour: "numeric",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+    el.textContent = `Draft syncs quietly in the background. Last synced · ${t}.`;
+  } else {
+    el.textContent =
+      "Draft syncs quietly in the background (about every 15s and shortly after you pause typing).";
+  }
 }
 
 /** Compare localStorage vs server timestamps (date-only YYYY-MM-DD → end of UTC day). */
@@ -119,10 +150,10 @@ export default function AdminArticleEditor({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const [autosaveState, setAutosaveState] = useState<"idle" | "saving" | "saved" | "error" | "local">(
-    "idle",
-  );
-  const [lastAutosaveAt, setLastAutosaveAt] = useState<string | null>(null);
+  const [autosaveState, setAutosaveState] = useState<"idle" | "local" | "error">("idle");
+  /** Browser-only save time when server draft sync is unavailable (503). */
+  const [lastBrowserOnlySaveAt, setLastBrowserOnlySaveAt] = useState<string | null>(null);
+  /** Set once when a draft is loaded from the server; drives localStorage merge only (not updated on each autosave). */
   const [lastServerSavedAt, setLastServerSavedAt] = useState<string | null>(null);
   const [remoteDraftSlug, setRemoteDraftSlug] = useState<string | null>(() =>
     mode === "edit" && editSlug ? editSlug : null,
@@ -131,12 +162,17 @@ export default function AdminArticleEditor({
   /** Set when draft API returns 503 so we show an accurate message (not “no DB” for browser-cache cases). */
   const [draftSyncBlockedCode, setDraftSyncBlockedCode] = useState<string | null>(null);
   const shouldFlushAfterBrowserMergeRef = useRef(false);
+  const autosaveFooterRef = useRef<HTMLParagraphElement | null>(null);
+  const lastQuietSyncIsoRef = useRef<string | null>(null);
 
   const snapRef = useRef({
     title: "",
     body: "",
     categorySlugs: [defaultCat] as string[],
     thumbnailUrl: "",
+    videoPlatform: "" as "" | "youtube" | "tiktok",
+    videoId: "",
+    videoTitle: "",
   });
   const lastAutosaveSentRef = useRef({
     title: "",
@@ -144,6 +180,7 @@ export default function AdminArticleEditor({
     categoryKey: "",
     thumbnailUrl: "",
     slug: "",
+    videoSig: "",
   });
   const ctxRef = useRef({
     mode,
@@ -158,7 +195,15 @@ export default function AdminArticleEditor({
   const autosaveUnlockedRef = useRef(false);
 
   slugRef.current = slug;
-  snapRef.current = { title, body, categorySlugs: selectedCategories, thumbnailUrl };
+  snapRef.current = {
+    title,
+    body,
+    categorySlugs: selectedCategories,
+    thumbnailUrl,
+    videoPlatform,
+    videoId,
+    videoTitle,
+  };
   ctxRef.current = { mode, editSlug: editSlug ?? null, remoteDraftSlug, published };
   autosaveUnlockedRef.current = autosaveUnlocked;
 
@@ -177,12 +222,8 @@ export default function AdminArticleEditor({
     }
   }, [body]);
 
-  const autosaveLine = useMemo(() => {
+  const autosaveProblemLine = useMemo(() => {
     if (published) return "";
-    if (!autosaveUnlocked) {
-      return "Start writing to enable autosave (about 25 characters in the article body).";
-    }
-    if (autosaveState === "saving") return "Saving…";
     if (autosaveState === "local") {
       const hint =
         draftSyncBlockedCode === "NO_DATABASE"
@@ -190,21 +231,23 @@ export default function AdminArticleEditor({
           : draftSyncBlockedCode === "NO_PERSISTENT_STORE"
             ? "Hosted runtime needs a database connection string or CONTENT_DATA_DIR for writes."
             : "Server could not save this draft.";
-      return lastAutosaveAt
-        ? `Saved in this browser · ${new Date(lastAutosaveAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} — ${hint}`
+      return lastBrowserOnlySaveAt
+        ? `Saved in this browser · ${new Date(lastBrowserOnlySaveAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} — ${hint}`
         : `Saved in this browser only — ${hint}`;
     }
     if (autosaveState === "error") {
       return "Autosave failed — your work stays in this browser until you use Save or Publish.";
     }
-    if (autosaveState === "saved" && lastAutosaveAt) {
-      return `Saved · ${new Date(lastAutosaveAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" })}`;
-    }
-    if (lastAutosaveAt) {
-      return `Last saved · ${new Date(lastAutosaveAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" })}`;
-    }
-    return "Autosave runs about every 15 seconds and ~3s after you pause typing.";
-  }, [published, autosaveUnlocked, autosaveState, lastAutosaveAt, draftSyncBlockedCode]);
+    return "";
+  }, [published, autosaveState, draftSyncBlockedCode, lastBrowserOnlySaveAt]);
+
+  useLayoutEffect(() => {
+    if (published || autosaveState !== "idle") return;
+    paintQuietAutosaveFooter(autosaveFooterRef.current, {
+      unlocked: autosaveUnlocked,
+      lastServerIso: lastQuietSyncIsoRef.current,
+    });
+  }, [published, autosaveState, autosaveUnlocked, loading]);
 
   useEffect(() => {
     setSelectedCategories((prev) => {
@@ -288,12 +331,22 @@ export default function AdminArticleEditor({
         payload.slug = slugNow;
       }
 
+      const videoSigNow = draftVideoSig(
+        snap.videoPlatform,
+        snap.videoId,
+        snap.videoTitle,
+      );
+      if (videoSigNow !== sent.videoSig) {
+        payload.videoPlatform = snap.videoPlatform;
+        payload.videoId = snap.videoId.trim();
+        payload.videoTitle = snap.videoTitle;
+      }
+
       if (Object.keys(payload).length === 0) {
         return;
       }
 
       inFlightRef.current = true;
-      startTransition(() => setAutosaveState("saving"));
       try {
         let res: Response;
         if (slugForPut) {
@@ -323,17 +376,23 @@ export default function AdminArticleEditor({
           if (res.status === 503) {
             const code = typeof data.code === "string" ? data.code : null;
             setDraftSyncBlockedCode(code ?? "UNAVAILABLE");
-            startTransition(() => setAutosaveState("local"));
-            setLastAutosaveAt(new Date().toISOString());
+            setAutosaveState("local");
+            setLastBrowserOnlySaveAt(new Date().toISOString());
           } else {
-            startTransition(() => setAutosaveState("error"));
+            setAutosaveState("error");
           }
           return;
         }
         setDraftSyncBlockedCode(null);
+        setAutosaveState((prev) => (prev === "idle" ? prev : "idle"));
         if (data.lastSavedAt) {
-          setLastAutosaveAt(data.lastSavedAt);
-          setLastServerSavedAt(data.lastSavedAt);
+          lastQuietSyncIsoRef.current = data.lastSavedAt;
+          requestAnimationFrame(() => {
+            paintQuietAutosaveFooter(autosaveFooterRef.current, {
+              unlocked: autosaveUnlockedRef.current,
+              lastServerIso: lastQuietSyncIsoRef.current,
+            });
+          });
         }
         if (data.slug) {
           setRemoteDraftSlug(data.slug);
@@ -347,10 +406,10 @@ export default function AdminArticleEditor({
         if ("categories" in payload) u.categoryKey = catKey;
         if ("thumbnailUrl" in payload) u.thumbnailUrl = snap.thumbnailUrl.trim();
         if (data.slug) u.slug = data.slug;
+        if (videoSigNow !== sent.videoSig) u.videoSig = videoSigNow;
         lastAutosaveSentRef.current = u;
-        startTransition(() => setAutosaveState("saved"));
       } catch {
-        startTransition(() => setAutosaveState("error"));
+        setAutosaveState("error");
       } finally {
         inFlightRef.current = false;
       }
@@ -400,7 +459,18 @@ export default function AdminArticleEditor({
     if (!canFlush) return;
     shouldFlushAfterBrowserMergeRef.current = false;
     void flushAutosaveRef.current();
-  }, [title, body, selectedCategories, thumbnailUrl, slug, published, autosaveUnlocked]);
+  }, [
+    title,
+    body,
+    selectedCategories,
+    thumbnailUrl,
+    slug,
+    published,
+    autosaveUnlocked,
+    videoPlatform,
+    videoId,
+    videoTitle,
+  ]);
 
   useEffect(() => {
     if (published) return;
@@ -432,7 +502,18 @@ export default function AdminArticleEditor({
       void flushAutosaveRef.current();
     }, 2800);
     return () => clearTimeout(id);
-  }, [title, body, selectedCategories, thumbnailUrl, slug, published, autosaveUnlocked]);
+  }, [
+    title,
+    body,
+    selectedCategories,
+    thumbnailUrl,
+    slug,
+    published,
+    autosaveUnlocked,
+    videoPlatform,
+    videoId,
+    videoTitle,
+  ]);
 
   useEffect(() => {
     if (published) return;
@@ -484,7 +565,7 @@ export default function AdminArticleEditor({
           fm.createdAt?.trim() ||
           null;
         setLastServerSavedAt(serverSyncWatermark);
-        setLastAutosaveAt(fm.lastSavedAt?.trim() || null);
+        lastQuietSyncIsoRef.current = fm.lastSavedAt?.trim() || null;
         setRemoteDraftSlug(editSlug);
         setSlug(editSlug);
         setTitle(fm.title);
@@ -512,19 +593,25 @@ export default function AdminArticleEditor({
         setRelatedLinks(
           (fm.related ?? []).map((r) => ({ slug: r.slug, anchor: r.anchor })),
         );
+        let loadedVideoPlatform: "" | "youtube" | "tiktok" = "";
+        let loadedVideoId = "";
+        let loadedVideoTitle = "";
         if (fm.video) {
-          setVideoPlatform(fm.video.platform as "youtube" | "tiktok");
+          loadedVideoPlatform = fm.video.platform as "youtube" | "tiktok";
           const vid = fm.video.id;
           const platform = fm.video.platform;
           if (platform === "youtube") {
-            setVideoId(parseYoutubeVideoId(vid) ?? vid);
+            loadedVideoId = parseYoutubeVideoId(vid) ?? vid;
           } else if (platform === "tiktok") {
-            setVideoId(parseTikTokVideoId(vid) ?? vid);
+            loadedVideoId = parseTikTokVideoId(vid) ?? vid;
           } else {
-            setVideoId(vid);
+            loadedVideoId = vid;
           }
-          setVideoTitle(fm.video.title ?? "");
+          loadedVideoTitle = fm.video.title ?? "";
         }
+        setVideoPlatform(loadedVideoPlatform);
+        setVideoId(loadedVideoId);
+        setVideoTitle(loadedVideoTitle);
 
         setFeatured(fm.featured === true);
         setThumbnailUrl(fm.thumbnailUrl ?? "");
@@ -549,6 +636,7 @@ export default function AdminArticleEditor({
           categoryKey: sortedCategoryKey(initialCats),
           thumbnailUrl: (fm.thumbnailUrl ?? "").trim(),
           slug: editSlug,
+          videoSig: draftVideoSig(loadedVideoPlatform, loadedVideoId, loadedVideoTitle),
         };
       } catch {
         if (!cancelled) setError("Network error");
@@ -645,15 +733,27 @@ export default function AdminArticleEditor({
         setSaving(false);
         return;
       }
+      const willShowDraftFooter =
+        nextPublished === "keep" ? !wasLive : nextPublished !== true;
+      const bumpQuietFooter = () => {
+        if (!willShowDraftFooter) return;
+        lastQuietSyncIsoRef.current = new Date().toISOString();
+        requestAnimationFrame(() => {
+          paintQuietAutosaveFooter(autosaveFooterRef.current, {
+            unlocked: autosaveUnlockedRef.current,
+            lastServerIso: lastQuietSyncIsoRef.current,
+          });
+        });
+      };
       if (mode === "edit" && data.slug && editSlug && data.slug !== editSlug) {
         setSlug(data.slug);
         setSuccess("Saved — article URL was updated.");
         router.replace(`/admin/posts/${encodeURIComponent(data.slug)}/edit`);
         setSaving(false);
-        setLastAutosaveAt(new Date().toISOString());
+        bumpQuietFooter();
         return;
       }
-      setLastAutosaveAt(new Date().toISOString());
+      bumpQuietFooter();
       if ((videoPlatform === "youtube" || videoPlatform === "tiktok") && videoIdOut) {
         setVideoId(videoIdOut);
       }
@@ -702,7 +802,8 @@ export default function AdminArticleEditor({
     setPublishedAt(new Date().toISOString().slice(0, 10));
     setAutosaveUnlocked(false);
     setRemoteDraftSlug(null);
-    setLastAutosaveAt(null);
+    setLastBrowserOnlySaveAt(null);
+    lastQuietSyncIsoRef.current = null;
     setAutosaveState("idle");
     setDraftSyncBlockedCode(null);
     lastAutosaveSentRef.current = {
@@ -711,6 +812,7 @@ export default function AdminArticleEditor({
       categoryKey: sortedCategoryKey([defaultCat]),
       thumbnailUrl: "",
       slug: "",
+      videoSig: "",
     };
   }
 
@@ -771,9 +873,16 @@ export default function AdminArticleEditor({
             </span>
           </div>
           {!published ? (
-            <p className="max-w-sm text-right text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
-              {autosaveLine}
-            </p>
+            autosaveState === "idle" ? (
+              <p
+                ref={autosaveFooterRef}
+                className="max-w-sm text-right text-xs leading-relaxed text-zinc-500 dark:text-zinc-400"
+              />
+            ) : (
+              <p className="max-w-sm text-right text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
+                {autosaveProblemLine}
+              </p>
+            )
           ) : null}
         </div>
       </div>
