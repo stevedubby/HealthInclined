@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import AdminLogoutButton from "@/components/AdminLogoutButton";
 import AdminThemeToggle from "@/components/AdminThemeToggle";
+import { SITE } from "@/lib/site";
 
 const nav = [
   { href: "/admin", label: "Dashboard", icon: "◆" },
@@ -46,7 +47,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
       <aside className="hidden w-64 shrink-0 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950 lg:flex">
         <div className="border-b border-zinc-200 px-5 py-6 dark:border-zinc-800">
           <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-500/90">
-            Healthinclined
+            {SITE.name}
           </div>
           <div className="mt-1 font-semibold text-zinc-900 dark:text-zinc-100">Content studio</div>
           <p className="mt-2 text-xs leading-5 text-zinc-500 dark:text-zinc-500">Write, SEO, publish.</p>

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import Container from "@/components/Container";
 import PostCard from "@/components/PostCard";
@@ -5,6 +6,7 @@ import CategoryTile from "@/components/CategoryTile";
 import VideoEmbed from "@/components/VideoEmbed";
 import HomeSearch from "@/components/HomeSearch";
 import PostCategoryLinks from "@/components/PostCategoryLinks";
+import HomeJsonLd from "@/components/HomeJsonLd";
 import {
   getAllPostsAsync,
   getFeaturedPostAsync,
@@ -15,6 +17,18 @@ import { getCategoriesAsync } from "@/lib/categories";
 import { resolvePostThumbnailUrl } from "@/lib/post-thumbnail";
 import { SITE } from "@/lib/site";
 import { getAllEmbeddedVideosAsync } from "@/lib/videos";
+
+export const metadata: Metadata = {
+  title: "Everyday body symptoms, explained simply",
+  description: SITE.description,
+  alternates: { canonical: SITE.baseUrl },
+  openGraph: {
+    title: `${SITE.name} — everyday symptoms, explained simply`,
+    description: SITE.description,
+    url: SITE.baseUrl,
+    type: "website",
+  },
+};
 
 export default async function Home() {
   const categories = await getCategoriesAsync();
@@ -34,12 +48,13 @@ export default async function Home() {
 
   return (
     <div className="relative isolate overflow-hidden bg-white dark:bg-zinc-950 before:absolute before:inset-0 before:-z-10 before:content-[''] before:bg-[radial-gradient(60%_60%_at_0%_0%,rgba(16,185,129,0.18),transparent_55%),radial-gradient(55%_55%_at_90%_0%,rgba(16,185,129,0.10),transparent_55%),linear-gradient(to_bottom,rgba(16,185,129,0.08),transparent_45%)] dark:before:bg-[radial-gradient(60%_60%_at_0%_0%,rgba(16,185,129,0.22),transparent_55%),radial-gradient(55%_55%_at_90%_0%,rgba(16,185,129,0.14),transparent_55%),linear-gradient(to_bottom,rgba(16,185,129,0.10),transparent_48%)]">
+      <HomeJsonLd />
       <section className="pt-10 sm:pt-14">
         <Container>
           <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-start">
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-2 text-sm font-semibold text-emerald-800 dark:border-emerald-800 dark:bg-zinc-900 dark:text-emerald-300">
-                everyday health education
+                {SITE.name} · everyday health education
               </div>
 
               <h1 className="mt-6 text-4xl font-bold leading-[1.05] tracking-tight text-zinc-900 dark:text-zinc-100 sm:text-5xl">
@@ -89,7 +104,7 @@ export default async function Home() {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-sm font-semibold text-emerald-900">
-                    New to Healthinclined?
+                    New to {SITE.name}?
                   </div>
                   <p className="mt-1 text-sm leading-6 text-zinc-400 dark:text-zinc-400">
                     Start with a body-signal post, then explore related topics.
@@ -119,6 +134,77 @@ export default async function Home() {
               </div>
             </div>
           </div>
+        </Container>
+      </section>
+
+      <section className="pt-10 sm:pt-12" aria-labelledby="explore-site-heading">
+        <Container>
+          <h2
+            id="explore-site-heading"
+            className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 sm:text-3xl"
+          >
+            Explore {SITE.name}
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+            Jump to the main sections of the site—clear titles and internal links help
+            readers (and search engines) find articles, videos, and categories quickly.
+          </p>
+          <ul className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <li>
+              <Link
+                href="/blog"
+                className="block rounded-2xl border border-emerald-100 bg-white p-4 transition hover:border-emerald-300 dark:border-emerald-900 dark:bg-zinc-900 dark:hover:border-emerald-700"
+              >
+                <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                  Health articles &amp; blog
+                </span>
+                <span className="mt-1 block text-xs leading-5 text-zinc-600 dark:text-zinc-400">
+                  Symptom guides and education posts, newest first.
+                </span>
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/videos"
+                className="block rounded-2xl border border-emerald-100 bg-white p-4 transition hover:border-emerald-300 dark:border-emerald-900 dark:bg-zinc-900 dark:hover:border-emerald-700"
+              >
+                <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                  Video library
+                </span>
+                <span className="mt-1 block text-xs leading-5 text-zinc-600 dark:text-zinc-400">
+                  Short explainers paired with full articles.
+                </span>
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/about"
+                className="block rounded-2xl border border-emerald-100 bg-white p-4 transition hover:border-emerald-300 dark:border-emerald-900 dark:bg-zinc-900 dark:hover:border-emerald-700"
+              >
+                <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                  About {SITE.name}
+                </span>
+                <span className="mt-1 block text-xs leading-5 text-zinc-600 dark:text-zinc-400">
+                  Mission, approach, and how content is written.
+                </span>
+              </Link>
+            </li>
+            <li>
+              <Link
+                href={highlightedCategory ? `/category/${highlightedCategory.slug}` : "/blog"}
+                className="block rounded-2xl border border-emerald-100 bg-white p-4 transition hover:border-emerald-300 dark:border-emerald-900 dark:bg-zinc-900 dark:hover:border-emerald-700"
+              >
+                <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                  Browse categories
+                </span>
+                <span className="mt-1 block text-xs leading-5 text-zinc-600 dark:text-zinc-400">
+                  {highlightedCategory
+                    ? `Start with ${highlightedCategory.name}, then explore the rest.`
+                    : "Organized topics for everyday body signals."}
+                </span>
+              </Link>
+            </li>
+          </ul>
         </Container>
       </section>
 

@@ -18,15 +18,15 @@ export async function generateMetadata({
 
   const canonical = `${SITE.baseUrl}/category/${category.slug}`;
   return {
-    title: `${category.name} | Healthinclined`,
+    title: `${category.name} articles`,
     description: category.shortDescription,
     alternates: { canonical },
     openGraph: {
       type: "website",
       url: canonical,
-      title: `${category.name} | Healthinclined`,
+      title: `${category.name} | ${SITE.name}`,
       description: category.shortDescription,
-      images: [{ url: `${SITE.baseUrl}/favicon.ico` }],
+      images: [{ url: `${SITE.baseUrl}/myhealthinclinedlogo.png` }],
     },
   };
 }

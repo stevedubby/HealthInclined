@@ -4,10 +4,16 @@ import Container from "@/components/Container";
 import { SITE } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "About | Healthinclined",
+  title: "About our mission",
   description:
-    "Learn about Healthinclined, a structured and research-based health education platform.",
+    "Learn about Health Inclined—structured, research-based health education for everyday symptoms. Non-diagnostic, plain-language guidance.",
   alternates: { canonical: `${SITE.baseUrl}/about` },
+  openGraph: {
+    title: `About | ${SITE.name}`,
+    description:
+      "Who we are, how we write, and how Health Inclined helps you understand everyday body signals.",
+    url: `${SITE.baseUrl}/about`,
+  },
 };
 
 export default function AboutPage() {
@@ -15,7 +21,7 @@ export default function AboutPage() {
     <Container>
       <div className="pt-10 sm:pt-14">
         <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 sm:text-4xl md:text-5xl">
-          About Healthinclined
+          About {SITE.name}
         </h1>
         <p className="mt-3 max-w-3xl text-base leading-7 text-zinc-600 dark:text-zinc-300 sm:text-lg">
           Clear, structured health education designed to improve understanding and support
@@ -31,8 +37,8 @@ export default function AboutPage() {
             <div className="min-w-0 space-y-10">
               <section className="space-y-4">
                 <p className="text-base leading-7 text-zinc-700 dark:text-zinc-300 sm:text-[1.03rem]">
-                  Healthinclined is a health education platform focused on helping you
-                  understand what your body is communicating-clearly, simply, and
+                  {SITE.name} is a health education platform focused on helping you
+                  understand what your body is communicating—clearly, simply, and
                   without confusion.
                 </p>
                 <p className="text-base leading-7 text-zinc-700 dark:text-zinc-300 sm:text-[1.03rem]">
@@ -41,7 +47,7 @@ export default function AboutPage() {
                   misinformation, or poor decision-making.
                 </p>
                 <p className="text-base leading-7 text-zinc-700 dark:text-zinc-300 sm:text-[1.03rem]">
-                  Healthinclined was created to provide clear, structured explanations
+                  {SITE.name} was created to provide clear, structured explanations
                   of these common experiences using widely accepted health knowledge,
                   presented in a way that is easy to follow and practical to apply.
                 </p>
@@ -74,7 +80,7 @@ export default function AboutPage() {
                   Why Trust This Platform
                 </h2>
                 <p className="mt-3 text-base leading-7 text-zinc-700 dark:text-zinc-300">
-                  Healthinclined is built on careful research and a commitment to
+                  {SITE.name} is built on careful research and a commitment to
                   clarity.
                 </p>
                 <p className="mt-4 text-base leading-7 text-zinc-700 dark:text-zinc-300">
@@ -94,7 +100,7 @@ export default function AboutPage() {
                   The Approach
                 </h2>
                 <p className="mt-3 text-base leading-7 text-zinc-700 dark:text-zinc-300">
-                  Content on Healthinclined is designed to be:
+                  Content on {SITE.name} is designed to be:
                 </p>
                 <ul className="mt-4 list-disc space-y-2 pl-5 text-base leading-7 text-zinc-700 dark:text-zinc-300">
                   <li>Clear</li>
@@ -112,7 +118,7 @@ export default function AboutPage() {
                   Platform Structure
                 </h2>
                 <p className="mt-3 text-base leading-7 text-zinc-700 dark:text-zinc-300">
-                  Healthinclined operates as a blog-first platform, where each topic is
+                  {SITE.name} operates as a blog-first platform, where each topic is
                   explained in detail and supported by short-form content for broader
                   accessibility and engagement.
                 </p>
@@ -124,7 +130,7 @@ export default function AboutPage() {
                 <div className="overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-md shadow-emerald-100/40 dark:border-emerald-900 dark:bg-zinc-900 dark:shadow-none">
                   <Image
                     src="/myaboutimage.jpeg"
-                    alt="About the creator of Healthinclined"
+                    alt={`About the creator of ${SITE.name}`}
                     width={900}
                     height={1100}
                     className="h-auto w-full max-h-[min(68vh,560px)] object-cover object-top md:max-h-none"
@@ -139,12 +145,12 @@ export default function AboutPage() {
                     About the Creator
                   </h2>
                   <p className="mt-3 text-base leading-7 text-zinc-700 dark:text-zinc-300">
-                    Healthinclined is developed and maintained by an independent health
+                    {SITE.name} is developed and maintained by an independent health
                     researcher with a strong focus on studying body patterns, simplifying
                     health information, and making practical knowledge more accessible.
                   </p>
                   <p className="mt-4 text-base leading-7 text-zinc-700 dark:text-zinc-300">
-                    In addition to Healthinclined, other niche-focused platforms have
+                    In addition to {SITE.name}, other niche-focused platforms have
                     been developed within the health space, including RecoveryHunt, which
                     focuses specifically on smoker-related health and recovery.
                   </p>

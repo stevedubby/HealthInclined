@@ -6,10 +6,11 @@ import { getAllPostsAsync } from "@/lib/content/posts";
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const posts = await getAllPostsAsync();
   const urls: MetadataRoute.Sitemap = [
-    { url: `${SITE.baseUrl}/`, lastModified: new Date() },
-    { url: `${SITE.baseUrl}/blog`, lastModified: new Date() },
-    { url: `${SITE.baseUrl}/videos`, lastModified: new Date() },
-    { url: `${SITE.baseUrl}/about`, lastModified: new Date() },
+    { url: `${SITE.baseUrl}/`, lastModified: new Date(), priority: 1 },
+    { url: `${SITE.baseUrl}/blog`, lastModified: new Date(), priority: 0.9 },
+    { url: `${SITE.baseUrl}/videos`, lastModified: new Date(), priority: 0.85 },
+    { url: `${SITE.baseUrl}/about`, lastModified: new Date(), priority: 0.8 },
+    { url: `${SITE.baseUrl}/terms`, lastModified: new Date(), priority: 0.5 },
   ];
 
   for (const c of await getCategoriesAsync()) {

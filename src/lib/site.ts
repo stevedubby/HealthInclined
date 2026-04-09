@@ -1,14 +1,20 @@
 export const SITE = {
-  name: "Healthinclined",
+  /** Public brand name (spaced) — use in titles, headings, and structured data. */
+  name: "Health Inclined",
+  /** Compact / handle form (logo alt text, filenames, social @handles). */
+  nameHandle: "Healthinclined",
   domain: "healthinclined.com",
   /** Canonical site URL (matches Vercel primary host when apex redirects to www). */
   baseUrl: "https://www.healthinclined.com",
   tagline: "Simple health education about everyday body symptoms.",
+  /** Default meta description (homepage + fallbacks). */
+  description:
+    "Simple health education about everyday body symptoms. Clear explanations and practical, non-diagnostic guidance.",
   /** Short line for the site footer. */
   footerTagline: "Simple, research-based explanations for everyday health symptoms.",
   // Keep messaging calm and non-diagnostic.
   trustLine:
-    "Healthinclined shares practical, everyday education. It’s not medical diagnosis.",
+    "Health Inclined shares practical, everyday education. It’s not medical diagnosis.",
 
   /** Set `CONTACT_EMAIL` in `.env.local` (falls back if unset). */
   contactEmail:

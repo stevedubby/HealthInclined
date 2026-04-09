@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import ThemeToggle from "@/components/ThemeToggle";
+import { SITE } from "@/lib/site";
 
 const NAV = [
   { href: "/blog", label: "Blog" },
@@ -28,14 +29,14 @@ export default function SiteHeader() {
           <Link href="/" className="group inline-flex items-center gap-3">
             <Image
               src="/myhealthinclinedlogo.png"
-              alt="Healthinclined logo"
+              alt={`${SITE.name} logo`}
               width={40}
               height={40}
               priority
               className="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-emerald-200 dark:ring-emerald-800"
             />
             <span className="text-lg font-extrabold tracking-tight text-emerald-900 group-hover:underline dark:text-emerald-300">
-              Healthinclined
+              {SITE.name}
             </span>
           </Link>
           <span className="text-xs font-semibold text-emerald-700">

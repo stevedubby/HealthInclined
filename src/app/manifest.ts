@@ -1,11 +1,11 @@
 import type { MetadataRoute } from "next";
+import { SITE } from "@/lib/site";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Healthinclined",
-    short_name: "Healthinclined",
-    description:
-      "Simple health education about everyday body symptoms. Clear explanations and practical, non-diagnostic guidance.",
+    name: SITE.name,
+    short_name: "Health Inclined",
+    description: SITE.description,
     start_url: "/",
     display: "standalone",
     background_color: "#ffffff",

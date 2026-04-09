@@ -7,11 +7,17 @@ import { getCategoriesAsync } from "@/lib/categories";
 import { SITE } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "Blog | Healthinclined",
+  title: "Health articles & symptom guides",
   description:
-    "Simple health education about everyday body symptoms, organized into clear categories.",
+    "Browse clear, practical articles on everyday body symptoms—organized by category. Non-diagnostic health education from Health Inclined.",
   alternates: {
     canonical: `${SITE.baseUrl}/blog`,
+  },
+  openGraph: {
+    title: `Health articles & symptom guides | ${SITE.name}`,
+    description:
+      "Browse articles on everyday body symptoms by category. Simple language and practical next steps.",
+    url: `${SITE.baseUrl}/blog`,
   },
 };
 
@@ -26,11 +32,11 @@ export default async function BlogIndex() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 sm:text-4xl">
-              Blog
+              Health articles &amp; symptom guides
             </h1>
             <p className="mt-2 max-w-prose text-base leading-7 text-zinc-700 dark:text-zinc-300">
-              Explore calm, simple explanations for everyday symptoms and health
-              education.
+              From {SITE.name}: calm, simple explanations for everyday symptoms—browse
+              by category or read the newest posts first.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

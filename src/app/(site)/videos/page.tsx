@@ -7,10 +7,16 @@ import { getCategoriesAsync } from "@/lib/categories";
 import { SITE } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "Video Library | Healthinclined",
-  description: "Short, simple explanations for everyday body symptoms.",
+  title: "Videos — short explanations for everyday symptoms",
+  description:
+    "Watch short Health Inclined videos on everyday body symptoms, then read the full articles for context and next steps.",
   alternates: {
     canonical: `${SITE.baseUrl}/videos`,
+  },
+  openGraph: {
+    title: `Videos | ${SITE.name}`,
+    description: "Short videos on everyday symptoms—paired with in-depth articles.",
+    url: `${SITE.baseUrl}/videos`,
   },
 };
 
@@ -25,11 +31,11 @@ export default async function VideosPage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 sm:text-4xl">
-              Video Library
+              Videos — short explanations for everyday symptoms
             </h1>
             <p className="mt-2 max-w-prose text-base leading-7 text-zinc-700 dark:text-zinc-300">
-              Watch short explanations, then read the matching posts for practical
-              next steps.
+              From {SITE.name}: watch a quick clip, then open the full article for
+              context and practical next steps.
             </p>
           </div>
           <Link

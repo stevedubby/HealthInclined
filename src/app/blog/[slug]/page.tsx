@@ -27,7 +27,7 @@ export async function generateMetadata({
   const metaTitle = (post.seoTitle?.trim() || post.title).trim();
 
   return {
-    title: `${metaTitle} | Healthinclined`,
+    title: metaTitle,
     description: post.description,
     keywords: post.keywords,
     alternates: { canonical },
@@ -36,7 +36,8 @@ export async function generateMetadata({
       url: canonical,
       title: metaTitle,
       description: post.description,
-      images: [{ url: `${SITE.baseUrl}/favicon.ico` }],
+      siteName: SITE.name,
+      images: [{ url: `${SITE.baseUrl}/myhealthinclinedlogo.png` }],
     },
     twitter: {
       card: "summary",

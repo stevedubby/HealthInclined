@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import AdminThemeToggle from "@/components/AdminThemeToggle";
+import { SITE } from "@/lib/site";
 
 export default function AdminLoginPage() {
   const [password, setPassword] = useState("");
@@ -40,7 +41,7 @@ export default function AdminLoginPage() {
 
       <div className="mb-10 text-center">
         <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-emerald-600 dark:text-emerald-500/90">
-          Healthinclined
+          {SITE.name}
         </p>
         <p className="mt-2 text-sm font-medium text-zinc-500 dark:text-zinc-500">Content studio</p>
       </div>

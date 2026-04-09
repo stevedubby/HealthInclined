@@ -20,27 +20,31 @@ const fraunces = Fraunces({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.baseUrl),
   title: {
-    default: "Healthinclined",
-    template: "%s | Healthinclined",
+    default: `${SITE.name} — Simple health education for everyday symptoms`,
+    template: `%s | ${SITE.name}`,
   },
-  applicationName: "Healthinclined",
-  description:
-    "Simple health education about everyday body symptoms. Clear explanations and practical, non-diagnostic guidance.",
+  applicationName: SITE.name,
+  description: SITE.description,
   keywords: [
     "health education",
     "everyday symptoms",
     "wellness blog",
+    "health inclined",
     "healthinclined",
     "body symptoms guide",
   ],
   alternates: {
     canonical: SITE.baseUrl,
   },
+  /**
+   * `src/app/icon.png` + `apple-icon.png` (from your logo) are the primary favicons for Google.
+   * Keep ICO as fallback for older clients.
+   */
   icons: {
     icon: [
-      { url: "/favicon.ico", type: "image/x-icon" },
-      { url: "/myhealthinclinedlogo.png", sizes: "32x32", type: "image/png" },
+      { url: "/myhealthinclinedlogo.png", sizes: "48x48", type: "image/png" },
       { url: "/myhealthinclinedlogo.png", sizes: "192x192", type: "image/png" },
+      { url: "/favicon.ico", sizes: "any" },
     ],
     apple: [{ url: "/myhealthinclinedlogo.png", sizes: "180x180", type: "image/png" }],
     shortcut: ["/myhealthinclinedlogo.png"],
@@ -49,17 +53,15 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     url: SITE.baseUrl,
-    siteName: "Healthinclined",
-    title: "Healthinclined",
-    description:
-      "Simple health education about everyday body symptoms. Clear explanations and practical, non-diagnostic guidance.",
-    images: [{ url: `${SITE.baseUrl}/myhealthinclinedlogo.png` }],
+    siteName: SITE.name,
+    title: `${SITE.name} — Everyday body symptoms, explained simply`,
+    description: SITE.description,
+    images: [{ url: `${SITE.baseUrl}/myhealthinclinedlogo.png`, alt: `${SITE.name} logo` }],
   },
   twitter: {
     card: "summary",
-    title: "Healthinclined",
-    description:
-      "Simple health education about everyday body symptoms. Clear explanations and practical, non-diagnostic guidance.",
+    title: `${SITE.name} — Everyday body symptoms, explained simply`,
+    description: SITE.description,
     images: [`${SITE.baseUrl}/myhealthinclinedlogo.png`],
   },
   robots: {

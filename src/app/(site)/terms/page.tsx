@@ -3,8 +3,8 @@ import Container from "@/components/Container";
 import { SITE } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "Terms of Service | Healthinclined",
-  description: "Terms of Service for Healthinclined.",
+  title: "Terms of Service",
+  description: `Terms of Service for ${SITE.name} (healthinclined.com). Educational use only—not medical advice.`,
   alternates: { canonical: `${SITE.baseUrl}/terms` },
 };
 
@@ -18,7 +18,7 @@ export default function TermsPage() {
 
         <div className="mt-6 rounded-3xl border border-emerald-100 bg-white p-6 sm:p-8 dark:border-emerald-900 dark:bg-zinc-900">
           <p className="text-base leading-7 text-zinc-700 dark:text-zinc-300">
-            By using Healthinclined, you agree to use this website for informational
+            By using {SITE.name}, you agree to use this website for informational
             purposes only.
           </p>
           <p className="mt-4 text-base leading-7 text-zinc-700 dark:text-zinc-300">
