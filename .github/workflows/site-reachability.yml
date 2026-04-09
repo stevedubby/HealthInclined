@@ -11,17 +11,16 @@ jobs:
   curl-homepage:
     runs-on: ubuntu-latest
     steps:
-      - name: HTTPS healthinclined.com (apex)
+      - name: HTTPS apex (follow redirect to www)
         run: |
           set -e
-          code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 25 https://healthinclined.com/)
+          code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 25 -L https://healthinclined.com/)
           echo "HTTP $code"
           test "$code" = "200"
 
-      # After you add www in DNS + Vercel, uncomment to enforce www → apex:
-      # - name: HTTPS www (redirect or 200)
-      #   run: |
-      #     set -e
-      #     code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 25 -L https://www.healthinclined.com/)
-      #     echo "HTTP $code"
-      #     test "$code" = "200"
+      - name: HTTPS www (canonical)
+        run: |
+          set -e
+          code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 25 https://www.healthinclined.com/)
+          echo "HTTP $code"
+          test "$code" = "200"

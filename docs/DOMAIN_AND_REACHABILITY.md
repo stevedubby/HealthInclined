@@ -18,7 +18,7 @@
 4. Keep the **apex** (`@`) record matching Vercel’s current **A** record(s). Remove **old or duplicate** A records that point elsewhere.
 5. Wait for propagation (often minutes; up to 24–48 hours with long TTL). Check globally: [DNSChecker](https://dnschecker.org) or [Google Public DNS](https://dns.google/).
 
-After `www` resolves to Vercel, this repo’s **Next.js redirect** sends `https://www.healthinclined.com/*` → `https://healthinclined.com/*` (308).
+**Canonical host:** If Vercel is set to send **apex → `www`** (307), do **not** also redirect **`www` → apex** in `next.config.ts` or you get an **infinite redirect loop** and the site never loads. This repo leaves host routing to Vercel; `SITE.baseUrl` should match the URL users end on (typically `https://www.healthinclined.com`).
 
 ## IPv6 (Vercel + third-party DNS)
 
@@ -28,8 +28,8 @@ Vercel’s docs: **custom domains on third-party DNS cannot use a working AAAA p
 
 - GitHub Action **Site reachability** (if enabled): pings the apex homepage on each push to `main`.
 - After DNS changes, verify:
-  - `https://healthinclined.com`
-  - `https://www.healthinclined.com` (should redirect to apex)
+  - `https://healthinclined.com` (may redirect to `www` — both should eventually show the site)
+  - `https://www.healthinclined.com`
 
 ## Corporate / school networks
 

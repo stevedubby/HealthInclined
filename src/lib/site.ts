@@ -1,7 +1,8 @@
 export const SITE = {
   name: "Healthinclined",
   domain: "healthinclined.com",
-  baseUrl: "https://healthinclined.com",
+  /** Canonical site URL (matches Vercel primary host when apex redirects to www). */
+  baseUrl: "https://www.healthinclined.com",
   tagline: "Simple health education about everyday body symptoms.",
   /** Short line for the site footer. */
   footerTagline: "Simple, research-based explanations for everyday health symptoms.",
