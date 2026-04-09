@@ -47,6 +47,12 @@ export default async function VideosPage() {
         </div>
 
         <div className="mt-8 grid gap-6 sm:grid-cols-2">
+          {videos.length === 0 ? (
+            <p className="col-span-full text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+              No videos yet. Add a YouTube or TikTok link to any article in the admin
+              editor—those embeds are listed here and on the homepage automatically.
+            </p>
+          ) : null}
           {videos.map((video) => {
             const category = video.categorySlug ? categoryBySlug.get(video.categorySlug) ?? null : null;
 

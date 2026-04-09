@@ -384,6 +384,13 @@ export default async function Home() {
             ) : null}
           </div>
 
+          {!primaryVideo && !secondaryVideo ? (
+            <p className="mt-6 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+              Videos from your articles will appear here automatically when you add a
+              YouTube or TikTok link in the admin editor for a post.
+            </p>
+          ) : null}
+
           <div className="mt-6">
             <Link
               href="/videos"

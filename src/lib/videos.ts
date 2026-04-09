@@ -7,30 +7,13 @@ export type SiteVideo = {
   id: string;
   categorySlug?: string;
   postSlug?: string;
-  source: "post" | "library";
 };
-
-const STATIC_VIDEOS: Array<Omit<SiteVideo, "key">> = [
-  {
-    title: "Sleep signals: snoring and nighttime recovery",
-    platform: "youtube",
-    id: "M7lc1UVf-VE",
-    categorySlug: "sleep",
-    source: "library",
-  },
-  {
-    title: "Tingling signals: nerves and temporary compression",
-    platform: "tiktok",
-    id: "7301234567890123456",
-    categorySlug: "nerves-circulation",
-    source: "library",
-  },
-];
 
 function videoKey(platform: VideoSpec["platform"], id: string) {
   return `${platform}:${id}`;
 }
 
+/** All videos come from published posts that have a video block (admin). No placeholder embeds. */
 export async function getAllEmbeddedVideosAsync(): Promise<SiteVideo[]> {
   const fromPosts = (await getAllPostsAsync())
     .filter((p) => p.video?.id)
@@ -41,20 +24,11 @@ export async function getAllEmbeddedVideosAsync(): Promise<SiteVideo[]> {
       id: p.video!.id,
       categorySlug: getPostCategorySlugs(p)[0],
       postSlug: p.slug,
-      source: "post" as const,
     }));
 
-  const fromLibrary = STATIC_VIDEOS.map((v) => ({
-    key: videoKey(v.platform, v.id),
-    ...v,
-  }));
-
-  const all = [...fromLibrary, ...fromPosts];
-
-  // De-dupe by platform+id
   const seen = new Set<string>();
   const unique: SiteVideo[] = [];
-  for (const v of all) {
+  for (const v of fromPosts) {
     if (seen.has(v.key)) continue;
     seen.add(v.key);
     unique.push(v);
@@ -62,4 +36,3 @@ export async function getAllEmbeddedVideosAsync(): Promise<SiteVideo[]> {
 
   return unique;
 }
-
