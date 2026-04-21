@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Category } from "@/lib/categories";
@@ -394,18 +394,26 @@ export default function AdminArticleEditor({
             });
           });
         }
-        if (data.slug) {
-          setRemoteDraftSlug(data.slug);
-          if (wasNew) {
-            router.replace(`/admin/posts/${encodeURIComponent(data.slug)}/edit`);
+        const returnedSlug = typeof data.slug === "string" ? data.slug : "";
+        if (returnedSlug) {
+          try {
+            offlineDraftStore("new").removeItem(autosaveStorageKey(null));
+          } catch {
+            /* ignore */
           }
+          startTransition(() => {
+            setRemoteDraftSlug(returnedSlug);
+            if (wasNew && !slugRef.current.trim()) {
+              setSlug(returnedSlug);
+            }
+          });
         }
         const u = { ...sent };
         if ("title" in payload) u.title = trimmedTitle;
         if ("body" in payload) u.body = snap.body;
         if ("categories" in payload) u.categoryKey = catKey;
         if ("thumbnailUrl" in payload) u.thumbnailUrl = snap.thumbnailUrl.trim();
-        if (data.slug) u.slug = data.slug;
+        if (returnedSlug) u.slug = returnedSlug;
         if (videoSigNow !== sent.videoSig) u.videoSig = videoSigNow;
         lastAutosaveSentRef.current = u;
       } catch {
@@ -414,7 +422,7 @@ export default function AdminArticleEditor({
         inFlightRef.current = false;
       }
     };
-  }, [router]);
+  }, []);
 
   useEffect(() => {
     if (mode !== "edit" || !editSlug || loading || published || !lastServerSavedAt) return;
@@ -764,6 +772,11 @@ export default function AdminArticleEditor({
         setSuccess(wasLive ? "Saved — still live." : "Saved.");
       } else if (nextPublished === true) {
         setSuccess("Published — live on the site.");
+        try {
+          sessionStorage.removeItem(autosaveStorageKey(null));
+        } catch {
+          /* ignore */
+        }
       } else {
         setSuccess(wasLive ? "Unpublished — hidden from readers." : "Saved as draft — hidden from readers.");
       }
@@ -1118,7 +1131,9 @@ export default function AdminArticleEditor({
             </p>
             <AdminRelatedArticlesPicker
               allArticles={allArticles}
-              excludeSlug={slug.trim().toLowerCase() || editSlug || ""}
+              excludeSlug={
+                slug.trim().toLowerCase() || editSlug || remoteDraftSlug?.trim().toLowerCase() || ""
+              }
               value={relatedLinks}
               onChange={setRelatedLinks}
             />
